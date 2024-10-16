@@ -105,17 +105,17 @@ func (b *BerObjectIdentifier) Decode(input io.Reader, withTagList ...bool) (int,
 		subIDEndIndex++
 	}
 
-	subidentifier := 0
+	subIdentifier := 0
 	for i := 0; i <= subIDEndIndex; i++ {
-		subidentifier |= (byteCode[i] & 0x7f) << ((subIDEndIndex - i) * 7)
+		subIdentifier |= (byteCode[i] & 0x7f) << ((subIDEndIndex - i) * 7)
 	}
 
-	if subidentifier < 40 {
-		objectIdentifierComponentsList = append(objectIdentifierComponentsList, 0, subidentifier)
-	} else if subidentifier < 80 {
-		objectIdentifierComponentsList = append(objectIdentifierComponentsList, 1, subidentifier-40)
+	if subIdentifier < 40 {
+		objectIdentifierComponentsList = append(objectIdentifierComponentsList, 0, subIdentifier)
+	} else if subIdentifier < 80 {
+		objectIdentifierComponentsList = append(objectIdentifierComponentsList, 1, subIdentifier-40)
 	} else {
-		objectIdentifierComponentsList = append(objectIdentifierComponentsList, 2, subidentifier-80)
+		objectIdentifierComponentsList = append(objectIdentifierComponentsList, 2, subIdentifier-80)
 	}
 
 	subIDEndIndex++
@@ -129,11 +129,11 @@ func (b *BerObjectIdentifier) Decode(input io.Reader, withTagList ...bool) (int,
 			}
 			subIDEndIndex++
 		}
-		subidentifier = 0
+		subIdentifier = 0
 		for j := subIDStartIndex; j <= subIDEndIndex; j++ {
-			subidentifier |= ((byteCode[j] & 0x7f) << ((subIDEndIndex - j) * 7))
+			subIdentifier |= (byteCode[j] & 0x7f) << ((subIDEndIndex - j) * 7)
 		}
-		objectIdentifierComponentsList = append(objectIdentifierComponentsList, subidentifier)
+		objectIdentifierComponentsList = append(objectIdentifierComponentsList, subIdentifier)
 		subIDEndIndex++
 	}
 
