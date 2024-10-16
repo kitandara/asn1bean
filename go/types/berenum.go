@@ -19,9 +19,9 @@ func NewBerEnum(v int64) *BerEnum {
 }
 
 func (b *BerEnum) Encode(reversedWriter io.Writer, withTagList ...bool) (int, error) {
-	return b.encodeWithTag(enumTag, reversedWriter, withTagList...)
+	return b.encodeUsingTag(enumTag, reversedWriter, withTagList...)
 }
 
 func (b *BerEnum) Decode(input io.Reader, withTagList ...bool) (int, error) {
-	return b.decodeWithTag(enumTag, input, withTagList...)
+	return b.decodeUsingTag(enumTag, input, withTagList...)
 }

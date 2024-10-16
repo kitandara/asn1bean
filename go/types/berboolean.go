@@ -22,7 +22,7 @@ func (b *BerBoolean) Encode(reversedWriter io.Writer, withTagList ...bool) (int,
 	if len(withTagList) > 0 {
 		withTag = withTagList[0]
 	} else {
-		withTag = false
+		withTag = true
 	}
 	codeLength := 1
 	var bx []byte

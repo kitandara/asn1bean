@@ -77,7 +77,7 @@ func (b *BerBitString) Decode(input io.Reader, withTagList ...bool) (int, error)
 	if len(withTagList) > 0 {
 		withTag = withTagList[0]
 	} else {
-		withTag = false
+		withTag = true
 	}
 	codeLength := 0
 	if withTag {

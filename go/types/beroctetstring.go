@@ -19,12 +19,12 @@ func NewBerOctetString(v []byte) *BerOctetString {
 	return &BerOctetString{value: v}
 }
 
-func (b *BerOctetString) Encode(reversedWriter io.Writer, withTagList ...bool) (int, error) {
+func (b *BerOctetString) encodeUsingTag(tag *asn1.BerTag, reversedWriter io.Writer, withTagList ...bool) (int, error) {
 	var withTag bool
 	if len(withTagList) > 0 {
 		withTag = withTagList[0]
 	} else {
-		withTag = false
+		withTag = true
 	}
 
 	codeLength := len(b.value)
@@ -39,10 +39,13 @@ func (b *BerOctetString) Encode(reversedWriter io.Writer, withTagList ...bool) (
 	}
 	codeLength += n
 	if withTag {
-		n, err = octetStringTag.Encode(reversedWriter)
+		n, err = tag.Encode(reversedWriter)
 		codeLength += n
 	}
 	return codeLength, err
+}
+func (b *BerOctetString) Encode(reversedWriter io.Writer, withTagList ...bool) (int, error) {
+	return b.encodeUsingTag(octetStringTag, reversedWriter, withTagList...)
 }
 
 func (b *BerOctetString) Decode(input io.Reader, withTagList ...bool) (int, error) {

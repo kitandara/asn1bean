@@ -75,3 +75,7 @@ func ReadByte(input io.Reader) (int, error) {
 	}
 	return int(b[0]), nil
 }
+func WriteByte(output io.Writer, val int) (int, error) {
+
+	return output.Write([]byte{byte(val)})
+}
