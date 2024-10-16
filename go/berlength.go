@@ -95,6 +95,14 @@ func (l *BerLength) Decode(input io.Reader) (int, error) {
 	return lenLength, nil
 }
 
+func (l *BerLength) ReadEocIndefinite(input io.Reader) (int, error) {
+	if l.Length >= 0 {
+		return 0, nil
+	}
+	err := ReadEocByte(input)
+	err = ReadEocByte(input)
+	return 2, err
+}
 func ReadEocByte(input io.Reader) error {
 	b := []byte{0}
 	_, err := input.Read(b)
