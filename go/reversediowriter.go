@@ -22,7 +22,7 @@ func (w *ReversedIoWriter) Write(b []byte) (int, error) {
 	return n, nil
 }
 
-func (w *ReversedIoWriter) getBytes() []byte {
+func (w *ReversedIoWriter) GetBytes() []byte {
 	if w.index < 0 {
 		return w.buffer
 	}

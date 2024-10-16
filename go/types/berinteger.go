@@ -17,12 +17,12 @@ func NewBerInteger(v int64) *BerInteger {
 	return &BerInteger{value: new(big.Int).SetInt64(v)}
 }
 
-func (b *BerInteger) Encode(reversedWriter io.Writer, withTagList ...bool) (int, error) {
+func (b *BerInteger) encodeWithTag(tag *asn1.BerTag, reversedWriter io.Writer, withTagList ...bool) (int, error) {
 	var withTag bool
 	if len(withTagList) > 0 {
 		withTag = withTagList[0]
 	} else {
-		withTag = false
+		withTag = true
 	}
 
 	encoded := b.value.Bytes()
@@ -38,13 +38,17 @@ func (b *BerInteger) Encode(reversedWriter io.Writer, withTagList ...bool) (int,
 	}
 	codeLength += n
 	if withTag {
-		n, err = intTag.Encode(reversedWriter)
+		n, err = tag.Encode(reversedWriter)
 		codeLength += n
 	}
 	return codeLength, err
 }
+func (b *BerInteger) Encode(reversedWriter io.Writer, withTagList ...bool) (int, error) {
+	return b.encodeWithTag(intTag, reversedWriter, withTagList...)
+}
 
-func (b *BerInteger) Decode(input io.Reader, withTagList ...bool) (int, error) {
+func (b *BerInteger) decodeWithTag(tag *asn1.BerTag, input io.Reader, withTagList ...bool) (int, error) {
+
 	var withTag bool
 	if len(withTagList) > 0 {
 		withTag = withTagList[0]
@@ -53,7 +57,7 @@ func (b *BerInteger) Decode(input io.Reader, withTagList ...bool) (int, error) {
 	}
 	codeLength := 0
 	if withTag {
-		n, err := intTag.DecodeAndCheck(input)
+		n, err := tag.DecodeAndCheck(input)
 		codeLength += n
 		if err != nil {
 			return codeLength, err
@@ -76,6 +80,9 @@ func (b *BerInteger) Decode(input io.Reader, withTagList ...bool) (int, error) {
 	b.value.SetBytes(byteCode)
 
 	return codeLength, nil
+}
+func (b *BerInteger) Decode(input io.Reader, withTagList ...bool) (int, error) {
+	return b.decodeWithTag(intTag, input, withTagList...)
 }
 
 func (b *BerInteger) S() string {

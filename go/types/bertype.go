@@ -1,6 +1,8 @@
 package asn1
 
-import "io"
+import (
+	"io"
+)
 
 // BerType Base type for BerTypes
 type BerType interface {

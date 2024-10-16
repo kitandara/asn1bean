@@ -43,7 +43,7 @@ func EncodeLength(length int, reverseOS io.Writer) (int, error) {
 
 	for i := 0; i < numBytes; i++ {
 		_, err := reverseOS.Write([]byte{
-			(length >> (8 * i)) & 0xFF,
+			(byte)((length >> (8 * i)) & 0xFF),
 		})
 		if err != nil {
 			return i, err

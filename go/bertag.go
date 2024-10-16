@@ -53,6 +53,10 @@ type BerTag struct {
 	tagBytes  []byte
 }
 
+type Tagged interface {
+	Tag() *BerTag
+}
+
 func NewBerTag(tagClass int, primitive int, tagNumber int) *BerTag {
 	return &BerTag{tagClass: tagClass, primitive: primitive, tagNumber: tagNumber}
 }
@@ -151,7 +155,7 @@ func (tag *BerTag) Equals(tagClass int, primitive int, tagNumber int) bool {
 
 func (tag *BerTag) S() string {
 	return fmt.Sprintf(
-		"identifier class: %d, primitive: %d, tag number: %d",
+		"identifier class: %d, primitive: %d, Tag number: %d",
 		tag.tagClass,
 		tag.primitive,
 		tag.tagNumber,
