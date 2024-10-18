@@ -13,7 +13,7 @@
  */
 package com.beanit.asn1bean.compiler;
 
-import com.beanit.asn1bean.compiler.BerClassWriter.Tag;
+import com.beanit.asn1bean.compiler.BerImplementationWriter.Tag;
 
 class ComponentInfo {
 

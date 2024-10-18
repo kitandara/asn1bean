@@ -13,18 +13,15 @@
  */
 package com.beanit.asn1bean.compiler;
 
-import com.beanit.asn1bean.compiler.cli.CliParameter;
-import com.beanit.asn1bean.compiler.cli.CliParameterBuilder;
-import com.beanit.asn1bean.compiler.cli.CliParseException;
-import com.beanit.asn1bean.compiler.cli.CliParser;
-import com.beanit.asn1bean.compiler.cli.FlagCliParameter;
-import com.beanit.asn1bean.compiler.cli.StringCliParameter;
-import com.beanit.asn1bean.compiler.cli.StringListCliParameter;
+import com.beanit.asn1bean.compiler.cli.*;
 import com.beanit.asn1bean.compiler.model.AsnModel;
 import com.beanit.asn1bean.compiler.model.AsnModule;
+import com.beanit.asn1bean.compiler.model.SymbolsFromModule;
 import com.beanit.asn1bean.compiler.parser.ASNLexer;
 import com.beanit.asn1bean.compiler.parser.ASNParser;
+
 import java.io.BufferedInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -73,6 +70,10 @@ public class Compiler {
             .setMandatory()
             .setDescription("ASN.1 files defining one or more modules.")
             .buildStringListParameter("file");
+    FlagCliParameter golangMode =
+        new CliParameterBuilder("-g")
+            .setDescription("Enable GoLang mode: Generate golang instead of Java classes")
+            .buildFlagParameter();
 
     List<CliParameter> cliParameters = new ArrayList<>();
     cliParameters.add(asn1Files);
@@ -81,6 +82,7 @@ public class Compiler {
     cliParameters.add(disableWritingVersion);
     cliParameters.add(accessExtended);
     cliParameters.add(legacyMode);
+    cliParameters.add(golangMode);
 
     CliParser cliParser =
         new CliParser(
@@ -107,17 +109,46 @@ public class Compiler {
       modulesByName.putAll(model.modulesByName);
     }
 
-    BerClassWriter classWriter =
-        new BerClassWriter(
-            modulesByName,
-            outputBaseDir.getValue(),
-            basePackageName.getValue(),
-            !legacyMode.isSelected(),
-            disableWritingVersion.isSelected(),
-            accessExtended.isSelected());
+    BerImplementationWriter classWriter;
+    if (golangMode.isSelected()) {
+      classWriter = new BerGoLangStructWriter(modulesByName,
+          outputBaseDir.getValue(),
+          basePackageName.getValue(),
+          disableWritingVersion.isSelected()
+      );
+    } else {
+      classWriter =
+          new BerJavaClassWriter(
+              modulesByName,
+              outputBaseDir.getValue(),
+              basePackageName.getValue(),
+              !legacyMode.isSelected(),
+              disableWritingVersion.isSelected(),
+              accessExtended.isSelected());
+    }
 
-    classWriter.translate();
+    translate(classWriter,modulesByName);
     System.out.println("done");
+  }
+
+  private static void translate(BerImplementationWriter classWriter, HashMap<String, AsnModule> modulesByName) throws IOException
+  {
+    for (AsnModule module : modulesByName.values()) {
+      for (SymbolsFromModule symbolsFromModule : module.importSymbolFromModuleList) {
+        if (modulesByName.get(symbolsFromModule.modref) == null) {
+          throw new IOException(
+              "Module \""
+                  + module.moduleIdentifier.name
+                  + "\" imports missing module \""
+                  + symbolsFromModule.modref
+                  + "\".");
+        }
+      }
+    }
+
+    for (AsnModule module : modulesByName.values()) {
+     classWriter.translateModule(module);
+    }
   }
 
   private static AsnModel getJavaModelFromAsn1File(String inputFileName) throws Exception {
