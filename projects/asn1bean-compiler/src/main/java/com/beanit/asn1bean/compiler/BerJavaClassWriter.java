@@ -58,8 +58,8 @@ import java.util.List;
 
 public class BerJavaClassWriter implements BerImplementationWriter {
 
-  private static final BerImplementationWriter.Tag stdSeqTag = new BerImplementationWriter.Tag();
-  private static final BerImplementationWriter.Tag stdSetTag = new BerImplementationWriter.Tag();
+  static final BerImplementationWriter.Tag stdSeqTag = new BerImplementationWriter.Tag();
+  static final BerImplementationWriter.Tag stdSetTag = new BerImplementationWriter.Tag();
 
   static {
     stdSeqTag.tagClass = BerImplementationWriter.TagClass.UNIVERSAL;
@@ -108,7 +108,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     this.modulesByName = modulesByName;
   }
 
-  private static String getBerTagParametersString(BerImplementationWriter.Tag tag) {
+   String getBerTagParametersString(BerImplementationWriter.Tag tag) {
     return "BerTag."
         + tag.tagClass
         + "_CLASS, BerTag."
@@ -125,6 +125,10 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     return ret;
   }
 
+  @Override
+  public void initOutputDir() throws IOException {
+    // Noting to do for this.
+  }
   public void translateModule(AsnModule module) throws IOException {
 
     System.out.println("Generating classes for module \"" + module.moduleIdentifier.name + "\"");
@@ -229,7 +233,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     }
   }
 
-  private String moduleToPackageName(String moduleName) {
+  protected String moduleToPackageName(String moduleName) {
     return Utils.moduleToPackageName(moduleName,".");
   }
 
@@ -354,7 +358,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
    * @param asnTaggedType the tagged type
    * @return the tag from the AsnTaggedType structure
    */
-  private BerImplementationWriter.Tag getTag(AsnTaggedType asnTaggedType) {
+  BerImplementationWriter.Tag getTag(AsnTaggedType asnTaggedType) {
 
     AsnTag asnTag = asnTaggedType.tag;
 
@@ -514,7 +518,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("}\n");
   }
 
-  private void setClassNamesOfComponents(
+  protected void setClassNamesOfComponents(
       List<String> listOfSubClassNames, List<AsnElementType> componentTypes, String parentClass) {
     for (AsnElementType element : componentTypes) {
       element.className = getClassName(listOfSubClassNames, element, parentClass);
@@ -731,14 +735,14 @@ public class BerJavaClassWriter implements BerImplementationWriter {
 
     writeSimpleEncodeFunction();
 
-    writeSequenceOrSetEncodeFunction(componentTypes, hasExplicitTag, asnSequenceSet.isSequence);
+    writeSequenceOrSetEncodeFunction(className, componentTypes, hasExplicitTag, asnSequenceSet.isSequence);
 
     writeSimpleDecodeFunction("true");
 
     if (asnSequenceSet.isSequence) {
-      writeSequenceDecodeMethod(convertToComponentInfos(componentTypes), hasExplicitTag);
+      writeSequenceDecodeMethod(className, convertToComponentInfos(componentTypes), hasExplicitTag);
     } else {
-      writeSetDecodeFunction(convertToComponentInfos(componentTypes), hasExplicitTag);
+      writeSetDecodeFunction(className, convertToComponentInfos(componentTypes), hasExplicitTag);
     }
 
     writeEncodeAndSaveFunction();
@@ -748,7 +752,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("}\n");
   }
 
-  private List<ComponentInfo> convertToComponentInfos(List<AsnElementType> asnElementTypes) {
+  List<ComponentInfo> convertToComponentInfos(List<AsnElementType> asnElementTypes) {
     int lastRequiredComponentIndex = getLastRequiredComponentIndex(asnElementTypes);
 
     List<ComponentInfo> componentInfos = new ArrayList<>(asnElementTypes.size());
@@ -1125,7 +1129,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
   }
 
   protected void writeSequenceOrSetEncodeFunction(
-      List<AsnElementType> componentTypes, boolean hasExplicitTag, boolean isSequence)
+      String className, List<AsnElementType> componentTypes, boolean hasExplicitTag, boolean isSequence)
       throws IOException {
     write("public int encode(OutputStream reverseOS, boolean withTag) throws IOException {\n");
 
@@ -1263,7 +1267,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("}\n");
   }
 
-  private String getExplicitEncodingParameter(AsnTaggedType componentType) {
+  String getExplicitEncodingParameter(AsnTaggedType componentType) {
     BerImplementationWriter.Tag tag = getTag(componentType);
 
     if (tag != null && tag.type == BerImplementationWriter.TagType.IMPLICIT) {
@@ -1277,7 +1281,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     }
   }
 
-  protected void writeSequenceDecodeMethod(List<ComponentInfo> components, boolean hasExplicitTag)
+  protected void writeSequenceDecodeMethod(String className, List<ComponentInfo> components, boolean hasExplicitTag)
       throws IOException {
     write("public int decode(InputStream is, boolean withTag) throws IOException {");
     write("int tlByteCount = 0;");
@@ -1464,7 +1468,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("}\n");
   }
 
-  protected void writeSetDecodeFunction(List<ComponentInfo> components, boolean hasExplicitTag)
+  protected void writeSetDecodeFunction(String className, List<ComponentInfo> components, boolean hasExplicitTag)
       throws IOException {
 
     write("public int decode(InputStream is, boolean withTag) throws IOException {");
@@ -1760,7 +1764,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("}\n");
   }
 
-  private boolean containsUntaggedChoiceOrAny(List<ComponentInfo> components) {
+  boolean containsUntaggedChoiceOrAny(List<ComponentInfo> components) {
     for (ComponentInfo component : components) {
       if (component.isDirectChoiceOrAny && (component.tag == null)) {
         return true;
@@ -1777,7 +1781,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     }
   }
 
-  private boolean allOptionalOrDefault(List<ComponentInfo> componentTypes) {
+  boolean allOptionalOrDefault(List<ComponentInfo> componentTypes) {
     return componentTypes.size() == 0
         || (componentTypes.get(0).mayBeLast && componentTypes.get(0).isOptionalOrDefault);
   }
@@ -1974,7 +1978,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("}\n");
   }
 
-  private void addAutomaticTagsIfNeeded(List<AsnElementType> componentTypes) {
+  void addAutomaticTagsIfNeeded(List<AsnElementType> componentTypes) {
     if (tagDefault != TagDefault.AUTOMATIC) {
       return;
     }
@@ -2028,7 +2032,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("codeLength += " + berTag.tagBytes.length + ";");
   }
 
-  private int getTagClassId(String tagClass) {
+  int getTagClassId(String tagClass) {
 
     switch (tagClass) {
       case "UNIVERSAL":
@@ -2048,11 +2052,11 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     return Utils.cleanUpName(componentType.name);
   }
 
-  private boolean isOptional(AsnElementType componentType) {
+  boolean isOptional(AsnElementType componentType) {
     return (componentType.isOptional || componentType.isDefault);
   }
 
-  private boolean isExplicit(BerImplementationWriter.Tag tag) {
+  boolean isExplicit(BerImplementationWriter.Tag tag) {
     return (tag != null) && (tag.type == BerImplementationWriter.TagType.EXPLICIT);
   }
 
@@ -2368,7 +2372,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     return asnModule;
   }
 
-  private boolean isDirectAnyOrChoice(AsnTaggedType taggedType) throws CompileException {
+  boolean isDirectAnyOrChoice(AsnTaggedType taggedType) throws CompileException {
 
     AsnType followedType = followAndGetNextTaggedOrUniversalType(taggedType, module);
     return (followedType instanceof AsnAny) || (followedType instanceof AsnChoice);
@@ -2399,7 +2403,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     return isPrimitive((AsnUniversalType) asnType);
   }
 
-  private boolean isPrimitiveOrRetaggedPrimitive(AsnType asnType) {
+  boolean isPrimitiveOrRetaggedPrimitive(AsnType asnType) {
     return isPrimitive(getUniversalType(asnType));
   }
 
@@ -2467,7 +2471,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("");
   }
 
-  private void write(String line) throws IOException {
+  protected void write(String line) throws IOException {
     if (line.startsWith("}")) {
       indentNum--;
     }

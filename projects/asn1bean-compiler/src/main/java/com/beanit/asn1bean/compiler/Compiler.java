@@ -133,6 +133,7 @@ public class Compiler {
 
   private static void translate(BerImplementationWriter classWriter, HashMap<String, AsnModule> modulesByName) throws IOException
   {
+    classWriter.initOutputDir();
     for (AsnModule module : modulesByName.values()) {
       for (SymbolsFromModule symbolsFromModule : module.importSymbolFromModuleList) {
         if (modulesByName.get(symbolsFromModule.modref) == null) {

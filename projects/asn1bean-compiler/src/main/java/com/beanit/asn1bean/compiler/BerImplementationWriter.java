@@ -9,6 +9,9 @@ public interface BerImplementationWriter {
   void translateModule(AsnModule module) throws IOException;
 
 
+  void initOutputDir() throws IOException;
+
+
   enum TagClass {
     UNIVERSAL,
     APPLICATION,

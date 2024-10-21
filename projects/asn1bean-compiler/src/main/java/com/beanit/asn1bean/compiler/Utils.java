@@ -84,6 +84,12 @@ public class Utils {
     return name;
   }
 
+  public static String lastPartOfPackageName(String moduleName)
+  {
+    String[] moduleParts = moduleName.split("-", -1);
+    int l = moduleParts.length;
+    return l > 0 ? Utils.sanitize(moduleParts[l-1].toLowerCase()) : "anon";
+  }
   public static String moduleToPackageName(String moduleName, String sep) {
     String[] moduleParts = moduleName.split("-", -1);
     StringBuilder packageName = new StringBuilder();
