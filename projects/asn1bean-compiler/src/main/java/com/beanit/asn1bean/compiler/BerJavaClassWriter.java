@@ -442,7 +442,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     }
   }
 
-  private void writeChoiceClass(
+  protected void writeChoiceClass(
       String className,
       AsnChoice asn1TypeElement,
       BerImplementationWriter.Tag tag,
@@ -507,13 +507,13 @@ public class BerJavaClassWriter implements BerImplementationWriter {
       writeGetterAndSetter(componentTypes);
     }
 
-    writeChoiceEncodeFunction(componentTypes, tag != null);
+    writeChoiceEncodeFunction(className, componentTypes, tag != null);
 
-    writeChoiceDecodeMethod(convertToComponentInfos(componentTypes), tag != null);
+    writeChoiceDecodeMethod(className, convertToComponentInfos(componentTypes), tag != null);
 
     writeEncodeAndSaveFunction(tag == null);
 
-    writeChoiceToStringFunction(componentTypes);
+    writeChoiceToStringFunction(className, componentTypes);
 
     write("}\n");
   }
@@ -525,14 +525,14 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     }
   }
 
-  private String getClassName(AsnElementType asnElementType) {
+  String getClassName(AsnElementType asnElementType) {
     if (!asnElementType.className.equals("")) {
       return asnElementType.className;
     }
     return getClassName(null, asnElementType, null);
   }
 
-  private String getClassName(AsnElementType asnElementType, String parentClass) {
+  String getClassName(AsnElementType asnElementType, String parentClass) {
     if (!asnElementType.className.isEmpty()) {
       return asnElementType.className;
     }
@@ -643,6 +643,40 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     return ioClass;
   }
 
+  void  writeSubClasses(String className, List<String> listOfSubClassNames, List<AsnElementType> componentTypes) throws IOException
+  {
+    for (AsnElementType componentType : componentTypes) {
+      if ((componentType.typeReference instanceof AsnConstructedType)) {
+        listOfSubClassNames.add(getClassName(componentType));
+      }
+    }
+
+    for (AsnElementType componentType : componentTypes) {
+
+      if (isInnerType(componentType)) {
+
+        String subClassName = getClassName(componentType, className);
+
+        writeConstructedTypeClass(
+            subClassName, componentType.typeReference, null, true, listOfSubClassNames);
+      }
+    }
+  }
+
+  BerImplementationWriter.Tag tagFromSequenceSet(Tag tag, boolean isSequenceOf)
+  {
+    BerImplementationWriter.Tag mainTag;
+    if (tag == null) {
+      if (isSequenceOf) {
+        mainTag = stdSeqTag;
+      } else {
+        mainTag = stdSetTag;
+      }
+    } else {
+      mainTag = tag;
+    }
+    return mainTag;
+  }
   protected void writeSequenceOrSetClass(
       String className,
       AsnSequenceSet asnSequenceSet,
@@ -671,33 +705,10 @@ public class BerJavaClassWriter implements BerImplementationWriter {
       replaceParametersByAnyTypes(componentTypes, parameters);
     }
 
-    for (AsnElementType componentType : componentTypes) {
-      if ((componentType.typeReference instanceof AsnConstructedType)) {
-        listOfSubClassNames.add(getClassName(componentType));
-      }
-    }
+  writeSubClasses(className,listOfSubClassNames,componentTypes);
 
-    for (AsnElementType componentType : componentTypes) {
+    BerImplementationWriter.Tag mainTag = tagFromSequenceSet(tag,asnSequenceSet.isSequence);
 
-      if (isInnerType(componentType)) {
-
-        String subClassName = getClassName(componentType, className);
-
-        writeConstructedTypeClass(
-            subClassName, componentType.typeReference, null, true, listOfSubClassNames);
-      }
-    }
-
-    BerImplementationWriter.Tag mainTag;
-    if (tag == null) {
-      if (asnSequenceSet.isSequence) {
-        mainTag = stdSeqTag;
-      } else {
-        mainTag = stdSetTag;
-      }
-    } else {
-      mainTag = tag;
-    }
 
     write(
         "public static final BerTag tag = new BerTag("
@@ -737,7 +748,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
 
     writeSequenceOrSetEncodeFunction(className, componentTypes, hasExplicitTag, asnSequenceSet.isSequence);
 
-    writeSimpleDecodeFunction("true");
+    writeSimpleDecodeFunction(className, "true");
 
     if (asnSequenceSet.isSequence) {
       writeSequenceDecodeMethod(className, convertToComponentInfos(componentTypes), hasExplicitTag);
@@ -747,7 +758,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
 
     writeEncodeAndSaveFunction();
 
-    writeSequenceOrSetToStringFunction(componentTypes);
+    writeSequenceOrSetToStringFunction(className, componentTypes);
 
     write("}\n");
   }
@@ -765,7 +776,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     return componentInfos;
   }
 
-  private ComponentInfo convertToComponentInfo(
+  ComponentInfo convertToComponentInfo(
       AsnElementType asnElementType, boolean mayBeLastComponent, String sequenceOrSetOfClassName) {
     String variableName = getVariableName(asnElementType);
     String className;
@@ -804,7 +815,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     }
   }
 
-  protected void writeSimpleDecodeFunction(String param) throws IOException {
+  protected void writeSimpleDecodeFunction(String className, String param) throws IOException {
     write("@Override public int decode(InputStream is) throws IOException {");
     write("return decode(is, " + param + ");");
     write("}\n");
@@ -888,18 +899,18 @@ public class BerJavaClassWriter implements BerImplementationWriter {
 
     writeSimpleEncodeFunction();
 
-    writeSequenceOfEncodeFunction(componentType, hasExplicitTag, asnSequenceOf.isSequenceOf);
+    writeSequenceOfEncodeFunction(className, componentType, hasExplicitTag, asnSequenceOf.isSequenceOf);
 
-    writeSimpleDecodeFunction("true");
+    writeSimpleDecodeFunction(className, "true");
 
     writeSequenceOrSetOfDecodeFunction(
-        convertToComponentInfo(componentType, false, referencedTypeName),
+        className, convertToComponentInfo(componentType, false, referencedTypeName),
         hasExplicitTag,
         asnSequenceOf.isSequenceOf);
 
     writeEncodeAndSaveFunction();
 
-    writeSequenceOrSetOfToStringFunction(referencedTypeName, componentType);
+    writeSequenceOrSetOfToStringFunction(className, referencedTypeName, componentType);
 
     write("}\n");
   }
@@ -1005,7 +1016,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
       write("}\n");
 
       if (isDirectAnyOrChoice((AsnTaggedType) typeDefinition)) {
-        writeSimpleDecodeFunction("true");
+        writeSimpleDecodeFunction(typeName, "true");
       }
 
       write(
@@ -1051,7 +1062,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
   }
 
   protected void writeChoiceEncodeFunction(
-      List<AsnElementType> componentTypes, boolean hasExplicitTag) throws IOException {
+      String className, List<AsnElementType> componentTypes, boolean hasExplicitTag) throws IOException {
     if (hasExplicitTag) {
       writeSimpleEncodeFunction();
       write("public int encode(OutputStream reverseOS, boolean withTag) throws IOException {\n");
@@ -1213,7 +1224,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
   }
 
   protected void writeSequenceOfEncodeFunction(
-      AsnElementType componentType, boolean hasExplicitTag, boolean isSequence) throws IOException {
+      String className, AsnElementType componentType, boolean hasExplicitTag, boolean isSequence) throws IOException {
     write("public int encode(OutputStream reverseOS, boolean withTag) throws IOException {\n");
 
     writeEncodingIfCodeIsNull();
@@ -1412,11 +1423,11 @@ public class BerJavaClassWriter implements BerImplementationWriter {
         "throw new IOException(\"Unexpected end of sequence, length tag: \" + lengthVal + \", bytes decoded: \" + vByteCount);\n");
   }
 
-  protected void writeChoiceDecodeMethod(List<ComponentInfo> components, boolean hasExplicitTag)
+  protected void writeChoiceDecodeMethod(String className, List<ComponentInfo> components, boolean hasExplicitTag)
       throws IOException {
 
     if (hasExplicitTag) {
-      writeSimpleDecodeFunction("true");
+      writeSimpleDecodeFunction(className, "true");
 
       write("public int decode(InputStream is, boolean withTag) throws IOException {");
       write("int tlvByteCount = 0;");
@@ -1431,7 +1442,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
       write("tlvByteCount += berTag.decode(is);\n");
     } else {
 
-      writeSimpleDecodeFunction("null");
+      writeSimpleDecodeFunction(className, "null");
 
       write("public int decode(InputStream is, BerTag berTag) throws IOException {\n");
 
@@ -1452,7 +1463,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
       if (component.isDirectChoiceOrAny && (component.tag == null)) {
         writeChoiceComponentDecodeUntaggedChoiceOrAny(component, hasExplicitTag);
       } else {
-        writeChoiceComponentDecodeRegular(component, hasExplicitTag);
+        writeChoiceComponentDecodeRegular(className, component, hasExplicitTag);
       }
     }
 
@@ -1536,7 +1547,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
   }
 
   protected void writeSequenceOrSetOfDecodeFunction(
-      ComponentInfo component, boolean hasExplicitTag, boolean isSequence) throws IOException {
+      String className, ComponentInfo component, boolean hasExplicitTag, boolean isSequence) throws IOException {
 
     write("public int decode(InputStream is, boolean withTag) throws IOException {");
     write("int tlByteCount = 0;");
@@ -1675,7 +1686,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("}");
   }
 
-  protected void writeChoiceComponentDecodeRegular(ComponentInfo component, boolean taggedChoice)
+  protected void writeChoiceComponentDecodeRegular(String className, ComponentInfo component, boolean taggedChoice)
       throws IOException {
     if (component.tag != null) {
       write("if (berTag.equals(" + getBerTagParametersString(component.tag) + ")) {");
@@ -1810,7 +1821,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("}");
   }
 
-  protected void writeToStringFunction() throws IOException {
+  protected void writeToStringFunction(String className) throws IOException {
     write("@Override public String toString() {");
     write("StringBuilder sb = new StringBuilder();");
     write("appendAsString(sb, 0);");
@@ -1818,8 +1829,8 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("}\n");
   }
 
-  protected void writeChoiceToStringFunction(List<AsnElementType> componentTypes) throws IOException {
-    writeToStringFunction();
+  protected void writeChoiceToStringFunction(String className, List<AsnElementType> componentTypes) throws IOException {
+    writeToStringFunction(className);
 
     write("public void appendAsString(StringBuilder sb, int indentLevel) {\n");
 
@@ -1846,10 +1857,10 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("}\n");
   }
 
-  protected void writeSequenceOrSetToStringFunction(List<AsnElementType> componentTypes)
+  protected void writeSequenceOrSetToStringFunction(String className, List<AsnElementType> componentTypes)
       throws IOException {
 
-    writeToStringFunction();
+    writeToStringFunction("");
 
     write("public void appendAsString(StringBuilder sb, int indentLevel) {\n");
 
@@ -1929,9 +1940,9 @@ public class BerJavaClassWriter implements BerImplementationWriter {
   }
 
   protected void writeSequenceOrSetOfToStringFunction(
-      String referencedTypeName, AsnElementType componentType) throws IOException {
+      String className, String referencedTypeName, AsnElementType componentType) throws IOException {
 
-    writeToStringFunction();
+    writeToStringFunction("");
 
     write("public void appendAsString(StringBuilder sb, int indentLevel) {\n");
 
@@ -2115,7 +2126,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("");
   }
 
-  private boolean isInnerType(AsnElementType element) {
+  boolean isInnerType(AsnElementType element) {
     return (element.typeReference instanceof AsnConstructedType);
   }
 
@@ -2148,7 +2159,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("}\n");
   }
 
-  private String getClassNameOfSequenceOfElement(
+  String getClassNameOfSequenceOfElement(
       AsnElementType componentType, List<String> listOfSubClassNames) {
     String classNameOfSequenceElement = getClassNameOfSequenceOfElement(componentType);
     for (String subClassName : listOfSubClassNames) {
@@ -2378,7 +2389,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     return (followedType instanceof AsnAny) || (followedType instanceof AsnChoice);
   }
 
-  private AsnUniversalType getUniversalType(AsnType asnType) {
+  AsnUniversalType getUniversalType(AsnType asnType) {
     return getUniversalType(asnType, module);
   }
 
@@ -2407,7 +2418,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     return isPrimitive(getUniversalType(asnType));
   }
 
-  private boolean isPrimitive(AsnUniversalType asnType) {
+  boolean isPrimitive(AsnUniversalType asnType) {
     return !(asnType instanceof AsnConstructedType || asnType instanceof AsnEmbeddedPdv);
   }
 

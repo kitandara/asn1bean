@@ -72,6 +72,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
         + "\t\"encoding/hex\"\n"
         + "\t\"errors\"\n"
         + "\t\"fmt\"\n"
+        + "\"bytes\"\n"
         + LIB_PREFIX + " \"" + LIB_SRC + "\"\n"
         + "\t\"io\"\n\n");
 
@@ -167,7 +168,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
             + "\t}");
 
         write("codeLength += n");
-        write("n,err = " + LIB_PREFIX + "EncodeLength(codeLength, reverseOS)");
+        write("n,err = " + LIB_PREFIX + ".EncodeLength(codeLength, reverseOS)");
         write("codeLength += n");
 
       } else {
@@ -259,6 +260,275 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
   }
 
   @Override
+  protected void writeChoiceClass(
+      String className,
+      AsnChoice asn1TypeElement,
+      BerImplementationWriter.Tag tag,
+      String isStaticStr,
+      List<String> listOfSubClassNames)
+      throws IOException {
+    List<AsnElementType> componentTypes = asn1TypeElement.componentTypes;
+
+    addAutomaticTagsIfNeeded(componentTypes);
+
+    writeSubClasses(className, listOfSubClassNames, componentTypes);
+    setClassNamesOfComponents(listOfSubClassNames, componentTypes, className);
+
+    write("type " + className + " struct {\n");
+    writeMembers(componentTypes);
+    write("}\n");
+
+    if (tag != null) {
+      write("func (b *" + className + ") GetTag () {");
+      write("return " + LIB_PREFIX + ".NewBerTag(" + getBerTagParametersString(tag) + ")");
+      write("}");
+    }
+
+    writeChoiceEncodeFunction(className, componentTypes, tag != null);
+
+    writeChoiceDecodeMethod(className, convertToComponentInfos(componentTypes), tag != null);
+
+    writeChoiceToStringFunction(className, componentTypes);
+  }
+
+  @Override
+  protected void writeChoiceEncodeFunction(
+      String className, List<AsnElementType> componentTypes, boolean hasExplicitTag) throws IOException {
+
+    write("func (b *" + className + ") Encode(reverseOS io.Writer, withTagList ...bool) (int, error) {");
+    if (!hasExplicitTag) {
+      write("var withTag bool\n"
+          + "\tif len(withTagList) > 0 {\n"
+          + "\t\twithTag = withTagList[0]\n"
+          + "\t} else {\n"
+          + "\t\twithTag = true\n"
+          + "\t}");
+    }
+    write("codeLength := 0");
+    write("var err error\n"
+        + "\tvar n int");
+    for (int j = componentTypes.size() - 1; j >= 0; j--) {
+      if (isExplicit(getTag(componentTypes.get(j)))) {
+        write("var sublength int\n");
+        break;
+      }
+    }
+
+    for (int j = componentTypes.size() - 1; j >= 0; j--) {
+
+      AsnElementType componentType = componentTypes.get(j);
+
+      BerImplementationWriter.Tag componentTag = getTag(componentType);
+
+      write("if b." + getVariableName(componentType) + " != nil) {");
+
+      String explicitEncoding = getExplicitEncodingParameter(componentType);
+
+      if (isExplicit(componentTag)) {
+        write(
+            "sublenth,err = b."
+                + getVariableName(componentType)
+                + ".Encode(reverseOS"
+                + explicitEncoding
+                + ")");
+        write("codeLength += sublength");
+        write("n,err = " + LIB_PREFIX + ".EncodeLength( sublength,reverseOS)");
+      } else {
+        write(
+            "n,err = b."
+                + getVariableName(componentType)
+                + ".Encode(reverseOS"
+                + explicitEncoding
+                + ");");
+      }
+
+      write("codeLength += n");
+      write("if err != nil {\n"
+          + "\t\treturn codeLength, err\n"
+          + "\t}");
+
+      if (componentTag != null) {
+        writeEncodeTag(componentTag);
+      }
+
+      if (hasExplicitTag) {
+        write("n,err = " + LIB_PREFIX + ".EncodeLength( codeLength,reverseOS)");
+        write("codeLength += n");
+        write("if withTag {");
+        write("n,err = b.GetTag().encode(reverseOS)");
+        write("codeLength += n");
+        write("}");
+        write("if err != nil {\n"
+            + "\t\treturn codeLength, err\n"
+            + "\t}");
+      }
+
+      write("return codeLength,nil");
+      write("}");
+
+      write("");
+    }
+
+    write("return 0, errors.New(\"error encoding CHOICE: No element of CHOICE was selected.\");");
+
+    write("}\n");
+  }
+
+  @Override
+  protected void writeSimpleDecodeFunction(String className, String param) throws IOException {
+    write("func (b *" + className + ") Decode(is io.Reader, withTagList ...bool) (int, error) {");
+    write("return b.DecodeWithTag(is, " + param + ")");
+    write("}\n");
+  }
+
+  @Override
+  protected void writeChoiceDecodeMethod(String className, List<ComponentInfo> components, boolean hasExplicitTag)
+      throws IOException {
+
+    if (hasExplicitTag) {
+      write("func (b *" + className + ") Decode(is io.Reader, withTagList ...bool) (int, error) {");
+      write("var withTag bool\n"
+          + "\tif len(withTagList) > 0 {\n"
+          + "\t\twithTag = withTagList[0]\n"
+          + "\t} else {\n"
+          + "\t\twithTag = true\n"
+          + "\t}\n"
+          + "");
+      write("var err error\n"
+          + "\tvar n int");
+
+      write(" tlvByteCount := 0");
+      write("berTag := new (" + LIB_PREFIX + ".BerTag)\n");
+
+      write("if withTag {");
+      write("n,err = b.GetTag().DecodeAndCheck(is)");
+      write("tlvByteCount += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn codeLength, err\n"
+          + "\t\t}");
+
+      write("}\n");
+      write(" explicitTagLength := &" + LIB_PREFIX + ".BerLength{}");
+
+      write("n,err = explicitTagLength.Decode(is)");
+      write("tlvByteCount += n");
+      write("n,err = berTag.Decode(is)\n");
+      write("tlvByteCount += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn codeLength, err\n"
+          + "\t\t}");
+    } else {
+
+      writeSimpleDecodeFunction(className, "null");
+
+      write("func (b *" + className + ") DecodeWithTag(is io.Reader, berTag *" + LIB_PREFIX + ".BerTag) (int, error) {");
+      write("var err error\n"
+          + "\tvar n int");
+
+      write("tlvByteCount := 0");
+      write("tagWasPassed := (berTag != nil)\n");
+
+      write("if berTag == nil {");
+      write("berTag = new(" + LIB_PREFIX + ".BerTag)");
+      write("n,err = berTag.Decode(is)");
+      write("tlvByteCount += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn codeLength, err\n"
+          + "\t\t}");
+      write("}\n");
+    }
+
+    if (containsUntaggedChoiceOrAny(components)) {
+      write("var numDecodedBytes int\n");
+    }
+
+    for (ComponentInfo component : components) {
+      if (component.isDirectChoiceOrAny && (component.tag == null)) {
+        writeChoiceComponentDecodeUntaggedChoiceOrAny(component, hasExplicitTag);
+      } else {
+        writeChoiceComponentDecodeRegular(className, component, hasExplicitTag);
+      }
+    }
+
+    if (!hasExplicitTag) {
+      write("if tagWasPassed {");
+      write("return 0,nil");
+      write("}\n");
+    }
+
+    write(
+        "return errors.New(fmt.Sprintf(\"Error decoding CHOICE: Tag %s matched to no item.\",berTag))");
+
+    write("}\n");
+  }
+
+  @Override
+  protected void writeChoiceComponentDecodeRegular(String className, ComponentInfo component, boolean taggedChoice)
+      throws IOException {
+    if (component.tag != null) {
+      write("if berTag.Equals(" + getBerTagParametersString(component.tag) + ") {");
+    } else {
+      write("if berTag.EqualsTag(b." + component.className + ".GetTag()) {");
+    }
+
+    if (isExplicit(component.tag)) {
+      write(" length := &" + LIB_PREFIX + ".BerLength{}");
+      write(" n,err = length.Decode(is)\n");
+      write("tlvByteCount += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn 0, err\n"
+          + "\t\t}");
+    }
+
+    write("b." + component.variableName + " = new (" + normaliseClassName(component.className) + ")");
+    write(
+        "n,err = "
+            + component.variableName
+            + ".Decode" + getDecodeFuncSuffix(component) + "(is, "
+            + getDecodeTagParameter(component)
+            + ")");
+    write("tlvByteCount += n");
+    if (isExplicit(component.tag)) {
+      write("n,err = length.ReadEocIfIndefinite(is)");
+      write("tlvByteCount += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn 0, err\n"
+          + "\t\t}");
+    }
+    if (taggedChoice) {
+      write("n,err = explicitTagLength.ReadEocIfIndefinite(is)");
+      write("tlvByteCount += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn 0, err\n"
+          + "\t\t}");
+    }
+    write("return tlvByteCount,nil");
+    write("}\n");
+  }
+
+  @Override
+  protected void writeChoiceComponentDecodeUntaggedChoiceOrAny(
+      ComponentInfo component, boolean taggedChoice) throws IOException {
+    write("b." + component.variableName + " = new (" + normaliseClassName(component.className) + ")");
+    write(
+        "numDecodedBytes,err = b."
+            + component.variableName
+            + ".Decode" + getDecodeFuncSuffix(component) + "(is, "
+            + getDecodeTagParameter(component)
+            + ")");
+
+    write("if numDecodedBytes != 0 {");
+    if (taggedChoice) {
+      write("n,err = explicitTagLength.ReadEocIfIndefinite(is);");
+      write("tlvByteCount += n");
+    }
+    write("return tlvByteCount + numDecodedBytes,nil");
+    write("} else {");
+    write("b." + component.variableName + " = nil");
+    write("}\n");
+  }
+
+  @Override
   protected void writeSequenceOrSetClass(
       String className,
       AsnSequenceSet asnSequenceSet,
@@ -267,24 +537,16 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
       List<String> listOfSubClassNames)
       throws IOException {
 
-    write("type " + className + " struct {");
-
     List<AsnElementType> componentTypes = asnSequenceSet.componentTypes;
     addAutomaticTagsIfNeeded(componentTypes);
     setClassNamesOfComponents(listOfSubClassNames, componentTypes, className);
+    writeSubClasses(className, listOfSubClassNames, componentTypes);
+
+    write("type " + className + " struct {");
     writeMembers(componentTypes);
     write("}");
 
-    BerImplementationWriter.Tag mainTag;
-    if (tag == null) {
-      if (asnSequenceSet.isSequence) {
-        mainTag = stdSeqTag;
-      } else {
-        mainTag = stdSetTag;
-      }
-    } else {
-      mainTag = tag;
-    }
+    BerImplementationWriter.Tag mainTag = tagFromSequenceSet(tag, asnSequenceSet.isSequence);
 
     // Write tag func.
     write("func (b *" + className + ") GetTag () {");
@@ -298,8 +560,145 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     } else {
       writeSetDecodeFunction(className, convertToComponentInfos(componentTypes), hasExplicitTag);
     }
-    writeSequenceOrSetToStringFunction(componentTypes);
+    writeSequenceOrSetToStringFunction(  className,componentTypes);
+  }
 
+  @Override
+  protected void writeSetComponentDecodeRegular(ComponentInfo component, boolean first)
+      throws IOException {
+
+    String elseString = first ? "" : " else ";
+    if (component.tag != null) {
+      write(elseString + "if berTag.Equals(" + getBerTagParametersString(component.tag) + ") {");
+    } else {
+      write(elseString + "if (berTag.Equals(new(" + normaliseClassName(component.className) + ").GetTag())) {");
+    }
+
+    if (isExplicit(component.tag)) {
+      write("n,err = length.Decode(is)");
+      write("vByteCount += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn 0, err\n"
+          + "\t\t}");
+
+    }
+
+    write("b." + component.variableName + " = new (" + normaliseClassName(component.className) + ")");
+    write(
+        "n,err = b."
+            + component.variableName
+            + ".Decode" + getDecodeFuncSuffix(component) + "(is, "
+            + getDecodeTagParameter(component)
+            + ")");
+    write("vByteCount += n");
+    write("if err != nil {\n"
+        + "\t\t\treturn 0, err\n"
+        + "\t\t}");
+
+    if (isExplicit(component.tag)) {
+      write("n,err = length.ReadEocIfIndefinite(is)");
+      write("vByteCount += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn 0, err\n"
+          + "\t\t}");
+    }
+    out.write("\n\t} "); // The 'else' in golang must be on same line...
+  }
+
+  @Override
+  protected void writeSetDecodeFunction(String className, List<ComponentInfo> components, boolean hasExplicitTag)
+      throws IOException {
+
+    write("func (b *" + className + ") Decode(is io.Reader, withTagList ...bool) (int, error) {");
+    write("var withTag bool\n"
+        + "\tif len(withTagList) > 0 {\n"
+        + "\t\twithTag = withTagList[0]\n"
+        + "\t} else {\n"
+        + "\t\twithTag = true\n"
+        + "\t}\n");
+    write("var err error\n"
+        + "\tvar n int");
+    write("tlByteCount := 0");
+    write("vByteCount := 0");
+    write("berTag := new(" + LIB_PREFIX + ".BerTag)\n");
+
+    write("if withTag {");
+    write("n,err = b.GetTag().decodeAndCheck(is)");
+    write("tlByteCount += n");
+    write("if err != nil {\n"
+        + "\t\t\treturn 0, err\n"
+        + "\t\t}");
+
+    write("}\n");
+
+    if (hasExplicitTag) {
+      write("explicitTagLength := &" + LIB_PREFIX + ".BerLength{}");
+      write("n,err = explicitTagLength.Decode(is)");
+      write("tlByteCount += n");
+      write("n,err = " + LIB_PREFIX + ".SET.DecodeAndCheck(is)\n");
+      write("tlByteCount += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn 0, err\n"
+          + "\t\t}");
+    }
+
+    write("length := &" + LIB_PREFIX + ".BerLength{}");
+    write("n,err = length.Decode(is)");
+    write("tlByteCount += n");
+    write("if err != nil {\n"
+        + "\t\t\treturn 0, err\n"
+        + "\t\t}");
+    write("lengthVal = length.Length\n");
+
+    if (allOptionalOrDefault(components)) {
+      write("if lengthVal == 0 {");
+      write("return tlByteCount,nil");
+      write("}\n");
+    }
+
+    write("for (vByteCount < lengthVal || lengthVal < 0) {");
+    write("n,err = berTag.Decode(is);");
+    write("vByteCount += n");
+
+    boolean first = true;
+    for (ComponentInfo component : components) {
+      if (component.isDirectChoiceOrAny && (component.tag == null)) {
+        throw new IOException("choice or ANY within set has no explicit tag.");
+      } else {
+        writeSetComponentDecodeRegular(component, first);
+      }
+      first = false;
+    }
+
+    write("else if lengthVal < 0 && berTag.Equals(0, 0, 0)) {");
+    write("err = " + LIB_PREFIX + ". ReadEocByte(is)");
+    write("vByteCount += 1");
+    write("if err != nil {\n"
+        + "\t\t\treturn 0, err\n"
+        + "\t\t}");
+
+    if (hasExplicitTag) {
+      write("n,err = explicitTagLength.ReadEocIfIndefinite(is)");
+      write("vByteCount += n");
+    }
+    write("return tlByteCount + vByteCount,err");
+    write("} else {");
+    write("return 0,  errors.New(\"tag does not match any set component: \" + berTag)");
+    write("}");
+
+    write("}");
+
+    write("if (vByteCount != lengthVal) {");
+    write(
+        "return 0,errors.New  (fmt.Sprintf(\"Length of set does not match length tag, length tag: %d, actual set length: %d \",  lengthVal, vByteCount))");
+    write("}");
+    if (hasExplicitTag) {
+      write("n,err = explicitTagLength.ReadEocIfIndefinite(is)");
+      write("vByteCount += n");
+    }
+
+    write("return tlByteCount + vByteCount,err");
+    write("}\n");
   }
 
   @Override
@@ -420,6 +819,246 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("}\n");
   }
 
+  @Override
+  protected void writeSequenceOfClass(
+      String className,
+      AsnSequenceOf asnSequenceOf,
+      BerImplementationWriter.Tag tag,
+      String isStaticStr,
+      List<String> listOfSubClassNames)
+      throws IOException {
+
+    AsnElementType componentType = asnSequenceOf.componentType;
+
+    String referencedTypeName = getClassNameOfSequenceOfElement(componentType, listOfSubClassNames);
+
+    if (isInnerType(componentType)) {
+      writeConstructedTypeClass(
+          referencedTypeName, componentType.typeReference, null, true, listOfSubClassNames);
+    }
+
+    BerImplementationWriter.Tag mainTag = tagFromSequenceSet(tag, asnSequenceOf.isSequenceOf);
+
+    write("type " + className + " struct {");
+    write("seqOf []" + normaliseClassName(referencedTypeName));
+    write("}");
+
+    // Write tag func.
+    write("func (b *" + className + ") GetTag () {");
+    write("return " + LIB_PREFIX + ".NewBerTag(" + getBerTagParametersString(mainTag) + ")");
+    write("}");
+
+    boolean hasExplicitTag = (tag != null) && (tag.type == BerImplementationWriter.TagType.EXPLICIT);
+
+    writeSequenceOfEncodeFunction(className, componentType, hasExplicitTag, asnSequenceOf.isSequenceOf);
+
+    writeSequenceOrSetOfDecodeFunction(className,
+        convertToComponentInfo(componentType, false, referencedTypeName),
+        hasExplicitTag,
+        asnSequenceOf.isSequenceOf);
+
+    writeSequenceOrSetOfToStringFunction(className, referencedTypeName, componentType);
+  }
+
+  protected void writeSequenceOfEncodeFunction(
+      String className, AsnElementType componentType, boolean hasExplicitTag, boolean isSequence) throws IOException {
+
+    write("func (b *" + className + ") Encode(reverseOS io.Writer, withTagList ...bool) (int, error) {");
+
+    write("var withTag bool\n"
+        + "\tif len(withTagList) > 0 {\n"
+        + "\t\twithTag = withTagList[0]\n"
+        + "\t} else {\n"
+        + "\t\twithTag = true\n"
+        + "\t}\n"
+        + "\tcodeLength := 0");
+    write("var err error\n"
+        + "\tvar n int");
+
+    write("for int i = len(b.seqOf) - 1; i >= 0; i-- {");
+
+    BerImplementationWriter.Tag componentTag = getTag(componentType);
+    String explicitEncoding = getExplicitEncodingParameter(componentType);
+
+    if (componentTag != null) {
+
+      if (componentTag.type == BerImplementationWriter.TagType.EXPLICIT) {
+        write("sublength,err = b.seqOf[i].Encode(reverseOS" + explicitEncoding + ")");
+        write("codeLength += sublength");
+        write("n,err = " + LIB_PREFIX + ".EncodeLength( sublength, reverseOS)");
+
+      } else {
+        write("n,err = b.seqOf[i].Encode(reverseOS" + explicitEncoding + ")");
+      }
+      write("codeLength += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn codeLength, err\n"
+          + "\t\t}");
+      writeEncodeTag(componentTag);
+    } else {
+
+      if (isDirectAnyOrChoice(componentType)) {
+        write("n,err = b.seqOf[i].Encode(reverseOS)");
+      } else {
+        write("n,err = b.seqOf[i].Encode(reverseOS, true)");
+      }
+      write("codeLength += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn codeLength, err\n"
+          + "\t\t}");
+    }
+
+    write("}\n");
+
+    if (hasExplicitTag) {
+      write("n,err = " + LIB_PREFIX + ".EncodeLength( codeLength,reverseOS)");
+      if (isSequence) {
+        write("_,_ = " + LIB_PREFIX + ".WriteByte(reverseOS, 0x30)");
+      } else {
+        write("_,_ = " + LIB_PREFIX + ".WriteByte(reverseOS, 0x31)");
+      }
+      write("if err != nil {\n"
+          + "\t\t\treturn codeLength, err\n"
+          + "\t\t}");
+      write("codeLength++;\n");
+    }
+
+    write("n,err = " + LIB_PREFIX + "b.EncodeLength(codeLength,reverseOS)\n");
+    write("codeLength += n");
+    write("if withTag {");
+    write("n,err= b.GetTag().Encode(reverseOS)");
+    write("codeLength += n");
+    write("}\n");
+
+    write("return codeLength,nil");
+    write("}\n");
+  }
+
+  @Override
+  protected void writeSequenceOrSetOfDecodeFunction(
+      String className, ComponentInfo component, boolean hasExplicitTag, boolean isSequence) throws IOException {
+
+    write("func (b *" + className + ") Decode(is io.Reader, withTagList ...bool) (int, error) {");
+    write("var withTag bool\n"
+        + "\tif len(withTagList) > 0 {\n"
+        + "\t\twithTag = withTagList[0]\n"
+        + "\t} else {\n"
+        + "\t\twithTag = true\n"
+        + "\t}\n"
+        + "\tcodeLength := 0");
+    write("var err error\n"
+        + "\tvar n int");
+
+    write("tlByteCount := 0");
+    write("vByteCount := 0");
+    if (containsUntaggedChoiceOrAny(Collections.singletonList(component))) {
+      write("var numDecodedBytes int");
+    }
+    write("berTag := new (" + LIB_PREFIX + ".BerTag)");
+
+    write("if withTag {");
+    write("n,err = b.GetTag().DecodeAndCheck(is)");
+    write("tlByteCount += n");
+    write("if err != nil {\n"
+        + "\t\t\treturn 0, err\n"
+        + "\t\t}");
+    write("}\n");
+
+    if (hasExplicitTag) {
+      write("explicitTagLength := &" + LIB_PREFIX + ".BerLength{}");
+      write("n,err = explicitTagLength.Decode(is)");
+      write("tlByteCount += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn codeLength, err\n"
+          + "\t\t}");
+      if (isSequence) {
+        write("n,err = " + LIB_PREFIX + ".SEQUENCE.DecodeAndCheck(is)\n");
+      } else {
+        write("n,err = " + LIB_PREFIX + ".SET.DecodeAndCheck(is)\n");
+      }
+      write("tlByteCount += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn 0, err\n"
+          + "\t\t}");
+    }
+
+    write("length := &" + LIB_PREFIX + ".BerLength{}");
+    write("n,err = length.Decode(is)");
+    write("tlByteCount += n");
+    write("lengthVal := length.Length;\n");
+    write("if err != nil {\n"
+        + "\t\t\treturn 0, err\n"
+        + "\t\t}");
+    write("for (vByteCount < lengthVal || lengthVal < 0) {");
+    write("n,err = berTag.Decode(is)\n");
+    write("vByteCount += n");
+    write("if lengthVal < 0 && berTag.equals(0, 0, 0) {");
+    write("err = " + LIB_PREFIX + ".ReadEocByte(is)");
+    write("vByteCount += 1");
+    write("break;");
+    write("}\n");
+
+    if (component.isDirectChoiceOrAny && (component.tag == null)) {
+      writeSequenceOfComponentDecodeUntaggedChoiceOrAny(component);
+    } else {
+      writeSequenceOfComponentDecodeRegular(component);
+    }
+
+    write("}");
+
+    write("if lengthVal >= 0 && vByteCount != lengthVal {");
+    write(
+        "return 0, errors.New(fmt.Sprintf(\"Decoded SequenceOf or SetOf has wrong length. Expected %d but has %d \", lengthVal, +vByteCount ))\n");
+    write("}");
+
+    if (hasExplicitTag) {
+      write("n,err = explicitTagLength.ReadEocIfIndefinite(is)");
+      write("vByteCount += n");
+    }
+    write("return tlByteCount + vByteCount,err");
+    write("}\n");
+  }
+
+  protected void writeSequenceOfComponentDecodeUntaggedChoiceOrAny(ComponentInfo component)
+      throws IOException {
+    write("element := new(" + normaliseClassName(component.className) + ")");
+    write("numDecodedBytes,err = " + "element.Decode" + getDecodeFuncSuffix(component) + "(is, " + getDecodeTagParameter(component) + ")");
+    write("if (numDecodedBytes == 0) {");
+    write("return 0,errors.New(\"tag did not match\")");
+    write("}");
+    write("vByteCount += numDecodedBytes");
+    write("b.seqOf = append(b.sqIf,element)");
+  }
+
+  @Override
+  protected void writeSequenceOfComponentDecodeRegular(ComponentInfo component) throws IOException {
+    if (component.tag != null) {
+      write("if !berTag.equals(" + getBerTagParametersString(component.tag) + ") {");
+    } else {
+      write("if (!berTag.EqualsTag(new(" + normaliseClassName(component.className) + ").GetTag()) {");
+    }
+    write("return 0, errors.New(\"tag does not match mandatory sequence of/set of component.\")");
+    write("}");
+
+    if (isExplicit(component.tag)) {
+      write("n,err = length.Decode(is)");
+      write("vByteCount += n");
+    }
+    write("element := new (" + normaliseClassName(component.className) + ")");
+    write("n,err = " + "element.Decode" + getDecodeFuncSuffix(component) + "(is, " + getDecodeTagParameter(component) + ")");
+    write("vByteCount += n");
+    write("b.seqOf = append(b.seqOf,element)");
+    write("if err != nil {\n"
+        + "\t\t\treturn codeLength, err\n"
+        + "\t\t}");
+    if (isExplicit(component.tag)) {
+      write("n,err = length.ReadEocIfIndefinite(is)");
+      write("vByteCount += n");
+      write("if err != nil {\n"
+          + "\t\t\treturn codeLength, err\n"
+          + "\t\t}");
+    }
+  }
 
   protected void writeSequenceDecodeMethod(String className, List<ComponentInfo> components, boolean hasExplicitTag)
       throws IOException {
@@ -539,6 +1178,12 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
         "return 0,errors.New(fmt.Sprintf(\"unexpected end of sequence, length tag: %d, bytes decoded: %d\", lengthVal, vByteCount))");
   }
 
+  private String getDecodeFuncSuffix(ComponentInfo component) {
+    if (component.isDirectChoiceOrAny) {
+      return "WithTag";
+    }
+    return "";
+  }
 
   @Override
   protected void writeSequenceComponentDecodeUntaggedChoiceOrAny(ComponentInfo component)
@@ -547,7 +1192,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write(
         "numDecodedBytes,_ = b."
             + component.variableName
-            + ".Decode(is, "
+            + ".Decode" + getDecodeFuncSuffix(component) + " (is, "
             + getDecodeTagParameter(component)
             + ")");
 
@@ -578,7 +1223,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     if (component.tag != null) {
       write("if (berTag.Equals(" + getBerTagParametersString(component.tag) + ")) {");
     } else {
-      write("if (berTag.EqualsTag(b." + component.className + ".GetTag())) {");
+      write("if (berTag.EqualsTag(" + component.className + ".GetTag())) {");
     }
 
     if (isExplicit(component.tag)) {
@@ -590,7 +1235,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write(
         "n,err = b."
             + component.variableName
-            + ".Decode(is, "
+            + ".Decode " + getDecodeFuncSuffix(component) + "(is, "
             + getDecodeTagParameter(component)
             + ")");
     write("vByteCount += n");
@@ -656,5 +1301,168 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("}");
   }
 
+  @Override
 
+  protected void writeToStringFunction(String className) throws IOException {
+    write("func(b * " + className + ") S() string {");
+    write("var sb bytes.Buffer");
+    write("b.AppendAsString(sb, 0)");
+    write("return sb.String()");
+    write("}\n");
+  }
+
+  @Override
+  protected void writeChoiceToStringFunction(String className, List<AsnElementType> componentTypes) throws IOException {
+    writeToStringFunction(className);
+
+    write("func (b * " + className + ")  AppendAsString( sb bytes.Buffer,   indentLevel int) {\n");
+
+    for (AsnElementType componentType : componentTypes) {
+      write("if b." + getVariableName(componentType) + " != nil {");
+
+      if (!isPrimitive(getUniversalType(componentType))) {
+        write("sb.WriteString(\"" + getVariableName(componentType) + ": \")");
+        write("b." + getVariableName(componentType) + ".AppendAsString(sb, indentLevel + 1)");
+      } else {
+        write(
+            "sb.WriteString(\""
+                + getVariableName(componentType)
+                + ": \")\n\tsb.WriteString(b."
+                + getVariableName(componentType)
+                + ".S());");
+      }
+      write("}\n");
+    }
+
+    write("sb.WriteString(\"<none>\");");
+
+    write("}\n");
+  }
+
+
+  protected void writeSequenceOrSetToStringFunction(String className, List<AsnElementType> componentTypes)
+      throws IOException {
+
+    writeToStringFunction(className);
+    write("func (b * " + className + ")  AppendAsString( sb bytes.Buffer,   indentLevel int) {\n");
+
+
+    write("sb.WriteString(\"{\");");
+
+    boolean checkIfFirstSelectedElement = componentTypes.size() > 1;
+
+    int j = 0;
+
+    for (AsnElementType componentType : componentTypes) {
+
+      if (isOptional(componentType)) {
+        if (j == 0 && componentTypes.size() > 1) {
+          write(" firstSelectedElement := true");
+        }
+        write("if b." + getVariableName(componentType) + " != nil {");
+      }
+
+      if (j != 0) {
+        if (checkIfFirstSelectedElement) {
+
+          write("if !firstSelectedElement {");
+        }
+        write("sb.WriteString(\",\\n\")");
+        if (checkIfFirstSelectedElement) {
+          write("}");
+        }
+      } else {
+        write("sb.WriteString(\"\\n\")");
+      }
+
+      write("for  i := 0; i < indentLevel + 1; i++ {");
+      write("sb.WriteString(\"\\t\");");
+      write("}");
+      if (!isOptional(componentType)) {
+        write("if b." + getVariableName(componentType) + " != nil {");
+      }
+      if (!isPrimitive(getUniversalType(componentType))) {
+        write("sb.WriteString(\"" + getVariableName(componentType) + ": \");");
+        write("b." +getVariableName(componentType) + ".AppendAsString(sb, indentLevel + 1)");
+      } else {
+        write(
+            "sb.WriteString(\""
+                + getVariableName(componentType)
+                + ": \")");
+         write(" sb.WriteString(b."
+                + getVariableName(componentType)
+                + ".S())");
+      }
+      if (!isOptional(componentType)) {
+        write("} else {");
+        write("sb.WriteString(\"" + getVariableName(componentType) + ": <empty-required-field>\")");
+        write("}");
+      }
+
+      if (isOptional(componentType)) {
+        if (checkIfFirstSelectedElement && j != (componentTypes.size() - 1)) {
+          write("firstSelectedElement := false");
+        }
+        write("}");
+      } else {
+        checkIfFirstSelectedElement = false;
+      }
+
+      write("");
+
+      j++;
+    }
+
+    write("sb.WriteString(\"\\n\")");
+    write("for i := 0; i < indentLevel; i++ {");
+    write("sb.WriteString(\"\\t\")");
+    write("}");
+    write("sb.WriteString(\"}\")");
+
+    write("}\n");
+  }
+
+  @Override
+  protected void writeSequenceOrSetOfToStringFunction(
+      String className, String referencedTypeName, AsnElementType componentType) throws IOException {
+
+    writeToStringFunction(className);
+
+    write("func (b * " + className + ")  AppendAsString( sb bytes.Buffer,   indentLevel int) {\n");
+
+    write("sb.WriteString(\"{\\n\");");
+    write("for int i := 0; i < indentLevel + 1; i++ {");
+    write("sb.WriteString(\"\\t\");");
+    write("}");
+
+    write("if b.seqOf == nil {");
+    write("sb.WriteString(\"null\");");
+    write("} else {");
+
+    write("for _, element : range b.seqOf  {");
+
+    if (!isPrimitive(getUniversalType(componentType))) {
+      write("element.AppendAsString(sb, indentLevel + 1)");
+    } else {
+      write("sb.WriteString(element.S())");
+    }
+    write("sb.WriteString(\",\\n\");");
+    write("for  i := 0; i < indentLevel + 1; i++ {");
+    write("sb.WriteString(\"\\t\");");
+    write("}");
+
+    write("} ");
+
+
+
+    write("}\n");
+
+    write("sb.WriteString(\"\\n\");");
+    write("for  i := 0; i < indentLevel; i++ {");
+    write("sb.WriteString(\"\\t\");");
+    write("}");
+    write("sb.WriteString(\"}\");");
+
+    write("}\n");
+  }
 }
