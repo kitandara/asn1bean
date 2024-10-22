@@ -11,6 +11,10 @@ public interface BerImplementationWriter {
 
   void initOutputDir() throws IOException;
 
+ default void addLibSymbols(AsnModule module) {
+
+ }
+
 
   enum TagClass {
     UNIVERSAL,

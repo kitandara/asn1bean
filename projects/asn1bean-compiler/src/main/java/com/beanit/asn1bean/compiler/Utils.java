@@ -84,6 +84,12 @@ public class Utils {
     return name;
   }
 
+  public static String lastPartOfName(String className)
+  {
+    String[] parts = className.split("\\.",-1);
+    return parts.length > 0 ? parts[parts.length-1] : className;
+  }
+
   public static String lastPartOfPackageName(String moduleName)
   {
     String[] moduleParts = moduleName.split("-", -1);

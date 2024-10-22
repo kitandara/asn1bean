@@ -13,39 +13,12 @@
  */
 package com.beanit.asn1bean.compiler;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
 import com.beanit.asn1bean.ber.BerTag;
 import com.beanit.asn1bean.ber.types.BerObjectIdentifier;
-import com.beanit.asn1bean.compiler.model.AsnAny;
-import com.beanit.asn1bean.compiler.model.AsnBitString;
-import com.beanit.asn1bean.compiler.model.AsnBoolean;
-import com.beanit.asn1bean.compiler.model.AsnCharacterString;
-import com.beanit.asn1bean.compiler.model.AsnChoice;
-import com.beanit.asn1bean.compiler.model.AsnClassNumber;
-import com.beanit.asn1bean.compiler.model.AsnConstructedType;
-import com.beanit.asn1bean.compiler.model.AsnDefinedType;
-import com.beanit.asn1bean.compiler.model.AsnElementType;
-import com.beanit.asn1bean.compiler.model.AsnEmbeddedPdv;
-import com.beanit.asn1bean.compiler.model.AsnEnum;
-import com.beanit.asn1bean.compiler.model.AsnInformationObjectClass;
-import com.beanit.asn1bean.compiler.model.AsnInteger;
-import com.beanit.asn1bean.compiler.model.AsnModule;
+import com.beanit.asn1bean.compiler.model.*;
 import com.beanit.asn1bean.compiler.model.AsnModule.TagDefault;
-import com.beanit.asn1bean.compiler.model.AsnNull;
-import com.beanit.asn1bean.compiler.model.AsnObjectIdentifier;
-import com.beanit.asn1bean.compiler.model.AsnOctetString;
-import com.beanit.asn1bean.compiler.model.AsnParameter;
-import com.beanit.asn1bean.compiler.model.AsnReal;
-import com.beanit.asn1bean.compiler.model.AsnSequenceOf;
-import com.beanit.asn1bean.compiler.model.AsnSequenceSet;
-import com.beanit.asn1bean.compiler.model.AsnTag;
-import com.beanit.asn1bean.compiler.model.AsnTaggedType;
-import com.beanit.asn1bean.compiler.model.AsnType;
-import com.beanit.asn1bean.compiler.model.AsnUniversalType;
-import com.beanit.asn1bean.compiler.model.AsnValueAssignment;
-import com.beanit.asn1bean.compiler.model.SymbolsFromModule;
 import com.beanit.asn1bean.util.HexString;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
@@ -55,6 +28,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class BerJavaClassWriter implements BerImplementationWriter {
 
@@ -71,19 +46,19 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     stdSetTag.typeStructure = BerImplementationWriter.TypeStructure.CONSTRUCTED;
   }
 
-  protected  String basePackageName;
-  private final boolean jaxbMode;
   protected final boolean accessExtended;
   protected final HashMap<String, AsnModule> modulesByName;
   protected final boolean insertVersion;
+  private final boolean jaxbMode;
   private final String berTypeInterfaceString = "BerType, ";
-  BufferedWriter out;
+  protected String basePackageName;
   protected TagDefault tagDefault;
   protected boolean extensibilityImplied;
   protected File outputBaseDir;
-  private int indentNum = 0;
   protected AsnModule module;
   protected File outputDirectory;
+  BufferedWriter out;
+  private int indentNum = 0;
 
 
   BerJavaClassWriter(
@@ -108,7 +83,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     this.modulesByName = modulesByName;
   }
 
-   String getBerTagParametersString(BerImplementationWriter.Tag tag) {
+  String getBerTagParametersString(BerImplementationWriter.Tag tag) {
     return "BerTag."
         + tag.tagClass
         + "_CLASS, BerTag."
@@ -236,7 +211,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
   }
 
   protected String moduleToPackageName(String moduleName) {
-    return Utils.moduleToPackageName(moduleName,".");
+    return Utils.moduleToPackageName(moduleName, ".");
   }
 
   private BerObjectIdentifier parseObjectIdentifierValue(String name, AsnModule module) {
@@ -354,8 +329,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
   }
 
   /**
-   * Gets the tag from the AsnTaggedType structure. The returned tag will contain the correct class
-   * and type (explicit or implicit). Return null if the passed tagged type does not have a tag.
+   * Gets the tag from the AsnTaggedType structure. The returned tag will contain the correct class and type (explicit or implicit). Return null if the passed tagged type does not have a tag.
    *
    * @param asnTaggedType the tagged type
    * @return the tag from the AsnTaggedType structure
@@ -610,7 +584,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     }
   }
 
-  protected   AsnInformationObjectClass getInformationObjectClass(
+  protected AsnInformationObjectClass getInformationObjectClass(
       String objectClassReference, AsnModule module) {
 
     AsnInformationObjectClass ioClass = module.objectClassesByName.get(objectClassReference);
@@ -645,8 +619,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     return ioClass;
   }
 
-  void  writeSubClasses(String className, List<String> listOfSubClassNames, List<AsnElementType> componentTypes) throws IOException
-  {
+  void writeSubClasses(String className, List<String> listOfSubClassNames, List<AsnElementType> componentTypes) throws IOException {
     for (AsnElementType componentType : componentTypes) {
       if ((componentType.typeReference instanceof AsnConstructedType)) {
         listOfSubClassNames.add(getClassName(componentType));
@@ -665,8 +638,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     }
   }
 
-  BerImplementationWriter.Tag tagFromSequenceSet(Tag tag, boolean isSequenceOf)
-  {
+  BerImplementationWriter.Tag tagFromSequenceSet(Tag tag, boolean isSequenceOf) {
     BerImplementationWriter.Tag mainTag;
     if (tag == null) {
       if (isSequenceOf) {
@@ -679,6 +651,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     }
     return mainTag;
   }
+
   protected void writeSequenceOrSetClass(
       String className,
       AsnSequenceSet asnSequenceSet,
@@ -707,10 +680,9 @@ public class BerJavaClassWriter implements BerImplementationWriter {
       replaceParametersByAnyTypes(componentTypes, parameters);
     }
 
-  writeSubClasses(className,listOfSubClassNames,componentTypes);
+    writeSubClasses(className, listOfSubClassNames, componentTypes);
 
-    BerImplementationWriter.Tag mainTag = tagFromSequenceSet(tag,asnSequenceSet.isSequence);
-
+    BerImplementationWriter.Tag mainTag = tagFromSequenceSet(tag, asnSequenceSet.isSequence);
 
     write(
         "public static final BerTag tag = new BerTag("
@@ -2161,7 +2133,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("}\n");
   }
 
-  String getClassNameOfSequenceOfElement(
+ protected String getClassNameOfSequenceOfElement(
       AsnElementType componentType, List<String> listOfSubClassNames) {
     String classNameOfSequenceElement = getClassNameOfSequenceOfElement(componentType);
     for (String subClassName : listOfSubClassNames) {
@@ -2181,7 +2153,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     return classNameOfSequenceElement;
   }
 
-  private String getClassNameOfSequenceOfElement(AsnElementType componentType) {
+  protected String getClassNameOfSequenceOfElement(AsnElementType componentType) {
     if (componentType.typeReference == null) {
       return Utils.cleanUpName(componentType.definedType.typeName);
     } else {
@@ -2244,32 +2216,32 @@ public class BerJavaClassWriter implements BerImplementationWriter {
   private String[] getConstructorParameters(AsnUniversalType typeDefinition) {
 
     if (typeDefinition instanceof AsnInteger || typeDefinition instanceof AsnEnum) {
-      return new String[] {"BigInteger", "value"};
+      return new String[]{"BigInteger", "value"};
     } else if (typeDefinition instanceof AsnReal) {
-      return new String[] {"double", "value"};
+      return new String[]{"double", "value"};
     } else if (typeDefinition instanceof AsnBoolean) {
-      return new String[] {"boolean", "value"};
+      return new String[]{"boolean", "value"};
     } else if (typeDefinition instanceof AsnObjectIdentifier) {
-      return new String[] {"int[]", "value"};
+      return new String[]{"int[]", "value"};
     } else if (typeDefinition instanceof AsnBitString) {
-      return new String[] {"byte[]", "value", "int", "numBits"};
+      return new String[]{"byte[]", "value", "int", "numBits"};
     } else if (typeDefinition instanceof AsnOctetString
         || typeDefinition instanceof AsnCharacterString) {
-      return new String[] {"byte[]", "value"};
+      return new String[]{"byte[]", "value"};
     } else if (typeDefinition instanceof AsnNull) {
       return new String[0];
     } else if ((typeDefinition instanceof AsnSequenceSet)
         || (typeDefinition instanceof AsnChoice)) {
       return getConstructorParametersFromConstructedElement((AsnConstructedType) typeDefinition);
     } else if (typeDefinition instanceof AsnSequenceOf) {
-      return new String[] {
-        "List<"
-            + getClassNameOfSequenceOfElement(((AsnSequenceOf) typeDefinition).componentType)
-            + ">",
-        "seqOf"
+      return new String[]{
+          "List<"
+              + getClassNameOfSequenceOfElement(((AsnSequenceOf) typeDefinition).componentType)
+              + ">",
+          "seqOf"
       };
     } else if (typeDefinition instanceof AsnAny) {
-      return new String[] {"byte[]", "value"};
+      return new String[]{"byte[]", "value"};
     } else if (typeDefinition instanceof AsnEmbeddedPdv) {
       return new String[0];
     } else {
@@ -2377,7 +2349,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
             + "\"");
   }
 
-  private  AsnModule getAsnModule(String moduleName) {
+  private AsnModule getAsnModule(String moduleName) {
     AsnModule asnModule = modulesByName.get(moduleName);
     if (asnModule == null) {
       throw new CompileException("Definition of imported module \"" + moduleName + "\" not found.");

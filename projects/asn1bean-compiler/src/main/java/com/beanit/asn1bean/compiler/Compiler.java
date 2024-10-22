@@ -126,13 +126,16 @@ public class Compiler {
               disableWritingVersion.isSelected(),
               accessExtended.isSelected());
     }
-
-    translate(classWriter,modulesByName);
+    try {
+      translate(classWriter, modulesByName);
+    } catch (Exception ex) {
+      System.err.println("Error translating modules: " + ex.getMessage());
+      ex.printStackTrace();
+    }
     System.out.println("done");
   }
 
-  private static void translate(BerImplementationWriter classWriter, HashMap<String, AsnModule> modulesByName) throws IOException
-  {
+  private static void translate(BerImplementationWriter classWriter, HashMap<String, AsnModule> modulesByName) throws IOException {
     classWriter.initOutputDir();
     for (AsnModule module : modulesByName.values()) {
       for (SymbolsFromModule symbolsFromModule : module.importSymbolFromModuleList) {
@@ -148,7 +151,8 @@ public class Compiler {
     }
 
     for (AsnModule module : modulesByName.values()) {
-     classWriter.translateModule(module);
+      classWriter.addLibSymbols(module);
+      classWriter.translateModule(module);
     }
   }
 
