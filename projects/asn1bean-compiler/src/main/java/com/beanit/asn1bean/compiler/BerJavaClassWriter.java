@@ -77,10 +77,16 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     if (basePackageName.isEmpty()) {
       this.basePackageName = "";
     } else {
-      this.outputBaseDir = new File(this.outputBaseDir, basePackageName.replace('.', '/'));
+      if (this.includeBasePackageNameInOutputDir()) {
+        this.outputBaseDir = new File(this.outputBaseDir, basePackageName.replace('.', '/'));
+      }
       this.basePackageName = basePackageName + ".";
     }
     this.modulesByName = modulesByName;
+  }
+
+  protected boolean includeBasePackageNameInOutputDir() {
+    return true;
   }
 
   String getBerTagParametersString(BerImplementationWriter.Tag tag) {
@@ -105,6 +111,10 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     // Noting to do for this.
   }
 
+  protected void initModuleOutputDir(AsnModule module)
+  {
+    // Do nothing.
+  }
   @Override
   public void translateModule(AsnModule module) throws IOException {
 
@@ -114,6 +124,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
         new File(
             outputBaseDir, moduleToPackageName(module.moduleIdentifier.name).replace('.', '/'));
 
+    this.initModuleOutputDir(module);
     this.module = module;
     tagDefault = module.tagDefault;
     extensibilityImplied = module.extensible;
@@ -2133,7 +2144,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     write("}\n");
   }
 
- protected String getClassNameOfSequenceOfElement(
+  protected String getClassNameOfSequenceOfElement(
       AsnElementType componentType, List<String> listOfSubClassNames) {
     String classNameOfSequenceElement = getClassNameOfSequenceOfElement(componentType);
     for (String subClassName : listOfSubClassNames) {

@@ -54,6 +54,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
   private static final String LIB_SRC = "github.com/kitandara/asn1ber";
   private static final String LIB_PREFIX = "asn1";
   private static final String GOLANG_VERSION = "1.23";
+  List<String> outputFolders = new ArrayList<>();
 
   public BerGoLangStructWriter(HashMap<String, AsnModule> modulesByName,
       String outputBaseDir,
@@ -66,16 +67,89 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
   }
 
   @Override
-  public void initOutputDir() throws IOException {
-    outputDirectory = new File(outputBaseDir, "."); // Force output dir to get created...
-    outputDirectory.mkdirs();
-    // Write go.mod file
-    Writer fileWriter = Files.newBufferedWriter(new File(outputBaseDir, "go.mod").toPath(), UTF_8);
+  protected boolean includeBasePackageNameInOutputDir() {
+    return false;
+  }
+
+  @Override
+  public void initModuleOutputDir(AsnModule module) {
+
+    try {
+      outputDirectory.mkdirs();
+      // Generate module name...
+      Writer fileWriter = Files.newBufferedWriter(new File(outputDirectory, "go.mod").toPath(), UTF_8);
+      BufferedWriter bf = new BufferedWriter(fileWriter);
+      String modName = moduleToPackageName(module.moduleIdentifier.name).replace('.', '/');
+      outputFolders.add(modName);
+      bf.write("module " + this.basePackageName + "/" + modName + "\n\n");
+      bf.write("go " + GOLANG_VERSION + "\n");
+      bf.close();
+      fileWriter.close();
+    } catch (Exception ex) {
+      ex.printStackTrace();
+    }
+  }
+
+  @Override
+  public void postOutput() throws IOException {
+    Writer fileWriter = Files.newBufferedWriter(new File(outputBaseDir, "go.work").toPath(), UTF_8);
     BufferedWriter bf = new BufferedWriter(fileWriter);
-    bf.write("module " + this.basePackageName + "\n\n");
+    bf.write("go " + GOLANG_VERSION + "\n");
+    if (this.outputFolders.size() > 0) {
+      bf.write("use (\n");
+      for (String dir : this.outputFolders) {
+        bf.write("\t\t./" + dir + "\n");
+      }
+      bf.write(")\n");
+    }
+    bf.close();
+    fileWriter.close();
+
+    initIntermediateDirs();
+  }
+
+  private void initIntermediateDirs() throws IOException {
+    Map<String,Boolean> m = new HashMap<>();
+    for (String d: this.outputFolders ) {
+      int idx = d.lastIndexOf('/');
+      String folder = idx>0 ? d.substring(0,idx) : d;
+      m.put(folder,true);
+    }
+   Set<String> folders =  m.keySet();
+    for (String f : folders) {
+      initSubFolder(f);
+    }
+  }
+
+  private void initSubFolder(String folder) throws IOException {
+
+    String pkg = this.basePackageName +  "/" + folder;
+    File dir = new File(this.outputBaseDir,folder);
+    writeModFile(pkg,dir);
+
+    int idx = folder.lastIndexOf('/');
+    if (idx > 0) {
+      String d = folder.substring(0,idx);
+      if (d.equals("."))
+        return;
+      initSubFolder(d);
+    }
+  }
+
+  private void writeModFile(String pkg, File baseDir) throws IOException
+  {
+    Writer fileWriter = Files.newBufferedWriter(new File(baseDir, "go.mod").toPath(), UTF_8);
+    BufferedWriter bf = new BufferedWriter(fileWriter);
+    bf.write("module " + pkg + "\n\n");
     bf.write("go " + GOLANG_VERSION + "\n");
     bf.close();
     fileWriter.close();
+  }
+  @Override
+  public void initOutputDir() throws IOException {
+    outputDirectory = new File(outputBaseDir, "."); // Force output dir to get created...
+    outputDirectory.mkdirs();
+    writeModFile(this.basePackageName, outputBaseDir);
   }
 
   @Override
@@ -118,8 +192,9 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
 
     for (SymbolsFromModule symbolsFromModule : module.importSymbolFromModuleList) {
       AsnModule importedModule = modulesByName.get(symbolsFromModule.modref);
-      if (importedModule == null)
+      if (importedModule == null) {
         continue; // Might be ours..
+      }
       for (String importedSymbol : symbolsFromModule.symbolList) {
         if (Character.isUpperCase(importedSymbol.charAt(0))) {
           if (importedModule.typesByName.get(importedSymbol) != null) {
@@ -783,7 +858,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
         write("if b." + getVariableName(componentType) + " != nil {");
       } else {
         write("if b." + getVariableName(componentType) + " == nil {");
-        write("return 0,errors.New(\"Missing component: " + getVariableName(componentType)  +"\") ");
+        write("return 0,errors.New(\"Missing component: " + getVariableName(componentType) + "\") ");
         write("}");
       }
 
@@ -1347,7 +1422,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
         write("if b." + getVariableName(componentType) + " != nil {");
       } else {
         write("if b." + getVariableName(componentType) + " == nil {");
-        write("return 0,errors.New(\"Missing component: " + getVariableName(componentType)  +"\" ");
+        write("return 0,errors.New(\"Missing component: " + getVariableName(componentType) + "\" ");
         write("}");
       }
 

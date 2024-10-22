@@ -154,6 +154,7 @@ public class Compiler {
       classWriter.addLibSymbols(module);
       classWriter.translateModule(module);
     }
+    classWriter.postOutput();
   }
 
   private static AsnModel getJavaModelFromAsn1File(String inputFileName) throws Exception {

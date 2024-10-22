@@ -15,6 +15,8 @@ public interface BerImplementationWriter {
 
  }
 
+ default void postOutput() throws IOException {}
+
 
   enum TagClass {
     UNIVERSAL,
