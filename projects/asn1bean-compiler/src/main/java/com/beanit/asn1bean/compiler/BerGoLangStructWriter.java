@@ -109,13 +109,13 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
   }
 
   private void initIntermediateDirs() throws IOException {
-    Map<String,Boolean> m = new HashMap<>();
-    for (String d: this.outputFolders ) {
+    Map<String, Boolean> m = new HashMap<>();
+    for (String d : this.outputFolders) {
       int idx = d.lastIndexOf('/');
-      String folder = idx>0 ? d.substring(0,idx) : d;
-      m.put(folder,true);
+      String folder = idx > 0 ? d.substring(0, idx) : d;
+      m.put(folder, true);
     }
-   Set<String> folders =  m.keySet();
+    Set<String> folders = m.keySet();
     for (String f : folders) {
       initSubFolder(f);
     }
@@ -123,21 +123,21 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
 
   private void initSubFolder(String folder) throws IOException {
 
-    String pkg = this.basePackageName +  "/" + folder;
-    File dir = new File(this.outputBaseDir,folder);
-    writeModFile(pkg,dir);
+    String pkg = this.basePackageName + "/" + folder;
+    File dir = new File(this.outputBaseDir, folder);
+    writeModFile(pkg, dir);
 
     int idx = folder.lastIndexOf('/');
     if (idx > 0) {
-      String d = folder.substring(0,idx);
-      if (d.equals("."))
+      String d = folder.substring(0, idx);
+      if (d.equals(".")) {
         return;
+      }
       initSubFolder(d);
     }
   }
 
-  private void writeModFile(String pkg, File baseDir) throws IOException
-  {
+  private void writeModFile(String pkg, File baseDir) throws IOException {
     Writer fileWriter = Files.newBufferedWriter(new File(baseDir, "go.mod").toPath(), UTF_8);
     BufferedWriter bf = new BufferedWriter(fileWriter);
     bf.write("module " + pkg + "\n\n");
@@ -145,6 +145,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     bf.close();
     fileWriter.close();
   }
+
   @Override
   public void initOutputDir() throws IOException {
     outputDirectory = new File(outputBaseDir, "."); // Force output dir to get created...
@@ -181,14 +182,14 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
 
     write("import (\n"
         + "\t\"encoding/hex\"\n"
-        + "\t\"errors\"\n"
-        + "\t\"fmt\"\n"
-        + "\t\"bytes\"\n"
+        + "\t \"errors\"\n"
+        + "\t \"fmt\"\n"
+        + "\t \"bytes\"\n"
         + "\t" + LIB_PREFIX + " \"" + LIB_SRC + "\"\n"
-        + "\t\"io\"\n\n");
+        + "\t \"io\"\n\n");
 
-    // Import from others...
-    List<String> importedClassesFromOtherModules = new ArrayList<>();
+    // Import from others. We import by module, so...
+    Set<String> importedClassesFromOtherModules = new HashSet<>();
 
     for (SymbolsFromModule symbolsFromModule : module.importSymbolFromModuleList) {
       AsnModule importedModule = modulesByName.get(symbolsFromModule.modref);
@@ -205,11 +206,37 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
         }
       }
     }
-    Collections.sort(importedClassesFromOtherModules);
+
     for (String modulePackage : importedClassesFromOtherModules) {
       write("\t\"" + basePackageName + "/" + modulePackage + "\"");
     }
     write(")\n\n");
+
+    if (!module.nameEmitted) {
+      write("var ModuleName = \"" + module.moduleIdentifier.name + "\"");
+      module.nameEmitted = true;
+    }
+
+    // Write dummy funcs to avoid compile errors
+    write("var (\n"
+        + "\t_ = io.Discard\n"
+        + "\t_ = fmt.Sprint\n"
+        + "\t_ = hex.Decode\n"
+        + "\t _ = errors.New\n"
+        + "\t _ = bytes.NewBuffer\n"
+        + "\t _ = " + LIB_PREFIX + ".NewBerTag\n\n");
+
+    for (String modulePackage : importedClassesFromOtherModules) {
+      // Output ignore clauses...
+      String[] parts = modulePackage.split("/");
+      String lastPart = parts.length > 0 ? parts[parts.length - 1] : modulePackage;
+
+      write("\t _ = " + lastPart + ".ModuleName\n");
+    }
+
+    write(")\n\n");
+
+
   }
 
   private String getModuleForType(String assignedTypeName) {
@@ -237,6 +264,10 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
         + tag.value;
   }
 
+  private void suppressUnusedWarning(String var) throws IOException {
+    write("_ = " + var);
+  }
+
   @Override
   protected void writeRetaggingTypeClass(
       String typeName, String assignedTypeName, AsnType typeDefinition, BerImplementationWriter.Tag tag)
@@ -256,7 +287,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
 
     // Write tag func
     if (tag != null) {
-      write("func (b *" + typeName + ") GetTag () {");
+      write("func (b *" + typeName + ") GetTag () *" + LIB_PREFIX + ".BerTag {");
       write("\treturn " + LIB_PREFIX + ".NewBerTag(" + getBerTagParametersString(tag) + ")");
       write("}");
 
@@ -309,7 +340,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
       write("var err error\n"
           + "\tvar n int");
       write("if withTag {");
-      write("n,err = b.GetTag().decodeAndCheck(is);");
+      write("n,err = b.GetTag().DecodeAndCheck(is);");
       write("codeLength += n");
       writeErrorCheckerCode();
       write("}\n");
@@ -321,7 +352,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
         write("codeLength += n");
         writeErrorCheckerCode();
         if (isDirectAnyOrChoice((AsnTaggedType) typeDefinition)) {
-          write("n,err = b." + embeddedType + ".DecodeWithTag(is, null);");
+          write("n,err = b." + embeddedType + ".DecodeWithTag(is, nil);");
         } else {
           write("n,err = b. " + embeddedType + ".Decode(is, true)");
         }
@@ -337,7 +368,6 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
       write("return codeLength,err");
       write("}\n");
     }
-    write("}");
   }
 
   private String normaliseClassName(String className) {
@@ -350,6 +380,9 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
       String embeddedType = Utils.cleanUpName(className);
 
       String importModuleName = getModuleForType(className);
+      if (importModuleName != null) {
+        importModuleName = Utils.lastPartOfPackageName(importModuleName);
+      }
       xName = (importModuleName != null ? importModuleName + "." : "") + "" + embeddedType;
     }
     return xName;
@@ -385,11 +418,13 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     writeMembers(componentTypes);
     write("}\n");
 
+    write("func (b *" + className + ") GetTag () *" + LIB_PREFIX + ".BerTag {");
     if (tag != null) {
-      write("func (b *" + className + ") GetTag () {");
       write("\treturn " + LIB_PREFIX + ".NewBerTag(" + getBerTagParametersString(tag) + ")");
-      write("}");
+    } else {
+      write("\treturn nil"); // Right??
     }
+    write("}");
 
     writeChoiceEncodeFunction(className, componentTypes, tag != null);
 
@@ -433,7 +468,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
 
       if (isExplicit(componentTag)) {
         write(
-            "sublenth,err = b."
+            "sublength,err = b."
                 + getVariableName(componentType)
                 + ".Encode(reverseOS"
                 + explicitEncoding
@@ -460,10 +495,12 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
         write("n,err = " + LIB_PREFIX + ".EncodeLength( codeLength,reverseOS)");
         write("codeLength += n");
         write("if withTag {");
-        write("n,err = b.GetTag().encode(reverseOS)");
+        write("n,err = b.GetTag().Encode(reverseOS)");
         write("codeLength += n");
         write("}");
         writeErrorCheckerCode();
+      } else {
+        suppressUnusedWarning("withTag");
       }
 
       write("return codeLength,nil");
@@ -524,7 +561,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
       writeErrorCheckerCode();
     } else {
 
-      writeSimpleDecodeFunction(className, "null");
+      writeSimpleDecodeFunction(className, "nil");
 
       write("func (b *" + className + ") DecodeWithTag(is io.Reader, berTag *" + LIB_PREFIX + ".BerTag) (int, error) {");
       write("var err error\n"
@@ -560,9 +597,18 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     }
 
     write(
-        "return errors.New(fmt.Sprintf(\"Error decoding CHOICE: Tag %s matched to no item.\",berTag))");
+        "return 0,errors.New(fmt.Sprintf(\"Error decoding CHOICE: Tag %s matched to no item.\",berTag))");
 
     write("}\n");
+  }
+
+  @Override
+  protected String getDecodeTagParameter(ComponentInfo component) {
+    if (component.isDirectChoiceOrAny) {
+      return isExplicit(component.tag) ? "nil" : "berTag";
+    } else {
+      return isExplicit(component.tag) ? "true" : "false";
+    }
   }
 
   @Override
@@ -583,7 +629,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
 
     write("b." + component.variableName + " = new (" + normaliseClassName(component.className) + ")");
     write(
-        "n,err = "
+        "n,err = b."
             + component.variableName
             + ".Decode" + getDecodeFuncSuffix(component) + "(is, "
             + getDecodeTagParameter(component)
@@ -646,7 +692,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     BerImplementationWriter.Tag mainTag = tagFromSequenceSet(tag, asnSequenceSet.isSequence);
 
     // Write tag func.
-    write("func (b *" + className + ") GetTag () {");
+    write("func (b *" + className + ") GetTag ()  *" + LIB_PREFIX + ".BerTag {");
     write("\treturn " + LIB_PREFIX + ".NewBerTag(" + getBerTagParametersString(mainTag) + ")");
     write("}");
     boolean hasExplicitTag = (tag != null) && (tag.type == BerImplementationWriter.TagType.EXPLICIT);
@@ -668,7 +714,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     if (component.tag != null) {
       write(elseString + "if berTag.Equals(" + getBerTagParametersString(component.tag) + ") {");
     } else {
-      write(elseString + "if (berTag.Equals(new(" + normaliseClassName(component.className) + ").GetTag())) {");
+      write(elseString + "if berTag.EqualsTag(new(" + normaliseClassName(component.className) + ").GetTag()) {");
     }
 
     if (isExplicit(component.tag)) {
@@ -714,7 +760,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("berTag := new(" + LIB_PREFIX + ".BerTag)\n");
 
     write("if withTag {");
-    write("n,err = b.GetTag().decodeAndCheck(is)");
+    write("n,err = b.GetTag().DecodeAndCheck(is)");
     write("tlByteCount += n");
     writeErrorCheckerCode();
 
@@ -733,7 +779,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("n,err = length.Decode(is)");
     write("tlByteCount += n");
     writeErrorCheckerCode();
-    write("lengthVal = length.Length\n");
+    write("lengthVal := length.Length\n");
 
     if (allOptionalOrDefault(components)) {
       write("if lengthVal == 0 {");
@@ -742,7 +788,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     }
 
     write("for (vByteCount < lengthVal || lengthVal < 0) {");
-    write("n,err = berTag.Decode(is);");
+    write("n,err = berTag.Decode(is)");
     write("vByteCount += n");
 
     boolean first = true;
@@ -755,7 +801,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
       first = false;
     }
 
-    write("else if lengthVal < 0 && berTag.Equals(0, 0, 0)) {");
+    write(" else if lengthVal < 0 && berTag.Equals(0, 0, 0) {");
     write("err = " + LIB_PREFIX + ". ReadEocByte(is)");
     write("vByteCount += 1");
     writeErrorCheckerCode();
@@ -766,7 +812,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     }
     write("return tlByteCount + vByteCount,err");
     write("} else {");
-    write("return 0,  errors.New(\"tag does not match any set component: \" + berTag)");
+    write("return 0,  errors.New(fmt.Sprintf(\"tag does not match any set component: %s\", berTag))");
     write("}");
 
     write("}");
@@ -874,12 +920,12 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
         write("sublength += n");
         write("codeLength += sublength");
         writeErrorCheckerCode();
-        write("n,err = " + LIB_PREFIX + ".EncodeLength(sublength,reversOS)");
+        write("n,err = " + LIB_PREFIX + ".EncodeLength(sublength,reverseOS)");
       } else {
         write(
             "n,err = b."
                 + getVariableName(componentType)
-                + ".encode(reverseOS"
+                + ".Encode(reverseOS"
                 + explicitEncoding
                 + ");");
       }
@@ -933,10 +979,10 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     String referencedTypeName = getClassNameOfSequenceOfElement(componentType, listOfSubClassNames);
 
     if (isInnerType(componentType)) {
-      module.subClassCount++;
+      // module.subClassCount++;
       writeConstructedTypeClass(
           referencedTypeName, componentType.typeReference, null, true, listOfSubClassNames);
-      module.subClassCount--;
+      //  module.subClassCount--;
     }
 
     BerImplementationWriter.Tag mainTag = tagFromSequenceSet(tag, asnSequenceOf.isSequenceOf);
@@ -946,7 +992,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("}\n\n");
 
     // Write tag func.
-    write("func (b *" + className + ") GetTag () {");
+    write("func (b *" + className + ") GetTag () *" + LIB_PREFIX + ".BerTag  {");
     write("\treturn " + LIB_PREFIX + ".NewBerTag(" + getBerTagParametersString(mainTag) + ")");
     write("}");
 
@@ -978,7 +1024,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("var err error\n"
         + "\tvar n int");
 
-    write("for  i = len(b.SeqOf) - 1; i >= 0; i-- {");
+    write("for  i := len(b.SeqOf) - 1; i >= 0; i-- {");
 
     BerImplementationWriter.Tag componentTag = getTag(componentType);
     String explicitEncoding = getExplicitEncodingParameter(componentType);
@@ -1124,7 +1170,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     if (component.tag != null) {
       write("if !berTag.Equals(" + getBerTagParametersString(component.tag) + ") {");
     } else {
-      write("if (!berTag.EqualsTag(new(" + normaliseClassName(component.className) + ").GetTag()) {");
+      write("if !berTag.EqualsTag(new(" + normaliseClassName(component.className) + ").GetTag()) {");
     }
     write("return 0, errors.New(\"tag does not match mandatory sequence of/set of component.\")");
     write("}");
@@ -1167,7 +1213,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("berTag := new(" + LIB_PREFIX + ".BerTag)\n");
 
     write("if withTag {");
-    write("n,err = b.GetTag().decodeAndCheck(is);");
+    write("n,err = b.GetTag().DecodeAndCheck(is);");
     write("tlByteCount += n");
     writeErrorCheckerCode();
     write("}\n");
@@ -1240,7 +1286,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("if vByteCount == lengthVal {");
     write("return tlByteCount + vByteCount,nil");
     write("}");
-    write("n,err = berTag.decode(is)");
+    write("n,err = berTag.Decode(is)");
     write("vByteCount += n");
     writeErrorCheckerCode();
     write("}");
@@ -1276,7 +1322,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("n,err = berTag.Decode(is)");
     write("vByteCount += n");
     writeErrorCheckerCode();
-    write("}");
+    out.write("} ");
     if (component.isOptionalOrDefault) {
       write("else {");
       write("b." + component.variableName + " = nil");
@@ -1290,9 +1336,9 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
   protected void writeSequenceComponentDecodeRegular(ComponentInfo component) throws IOException {
 
     if (component.tag != null) {
-      write("if (berTag.Equals(" + getBerTagParametersString(component.tag) + ")) {");
+      write("if berTag.Equals(" + getBerTagParametersString(component.tag) + ") {");
     } else {
-      write("if (berTag.EqualsTag(new(" + normaliseClassName(component.className) + ").GetTag())) {");
+      write("if berTag.EqualsTag(new(" + normaliseClassName(component.className) + ").GetTag()) {");
     }
 
     if (isExplicit(component.tag)) {
@@ -1304,7 +1350,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write(
         "n,err = b."
             + component.variableName
-            + ".Decode " + getDecodeFuncSuffix(component) + "(is, "
+            + ".Decode" + getDecodeFuncSuffix(component) + "(is, "
             + getDecodeTagParameter(component)
             + ")");
     write("vByteCount += n");
@@ -1318,13 +1364,14 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     if (component.mayBeLast) {
       writeReturnIfDefiniteLengthMatchesDecodedBytes();
     }
-    write("n,err = berTag.decode(is);");
+    write("n,err = berTag.Decode(is)");
     write("vByteCount += n");
     writeErrorCheckerCode();
-    write("}");
+    out.write("} "); // For else
     if (!component.isOptionalOrDefault) {
       writeElseThrowTagMatchingException();
     }
+    write("");
   }
 
   @Override
@@ -1334,8 +1381,8 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("if !berTag.Equals(0, 0, 0) {");
     write("return 0,errors.New(\"decoded sequence has wrong end of contents octets\")");
     write("}");
-    write("n,err =  " + LIB_PREFIX + ".ReadEocByte(is)");
-    write("vByteCount += n");
+    write("err =  " + LIB_PREFIX + ".ReadEocByte(is)");
+    write("vByteCount += 1");
     writeErrorCheckerCode();
     if (hasExplicitTag) {
       write("n,err = explicitTagLength.ReadEocIfIndefinite(is)");
@@ -1420,10 +1467,6 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
           write(" firstSelectedElement := true");
         }
         write("if b." + getVariableName(componentType) + " != nil {");
-      } else {
-        write("if b." + getVariableName(componentType) + " == nil {");
-        write("return 0,errors.New(\"Missing component: " + getVariableName(componentType) + "\" ");
-        write("}");
       }
 
       if (j != 0) {
@@ -1503,7 +1546,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("sb.WriteString(\"null\");");
     write("} else {");
 
-    write("for _, element : range b.SeqOf  {");
+    write("for _, element := range b.SeqOf  {");
 
     if (!isPrimitive(getUniversalType(componentType))) {
       write("element.AppendAsString(sb, indentLevel + 1)");

@@ -32,7 +32,7 @@ public class AsnModule {
   public boolean tag;
   public TagDefault tagDefault = TagDefault.EXPLICIT;
 
-  public int subClassCount; // Used to track sub-class dives. Not nice, but...
+  public boolean nameEmitted = false; // Track output of name...
   public AsnModule() {
     exportSymbolList = new ArrayList<>();
 
