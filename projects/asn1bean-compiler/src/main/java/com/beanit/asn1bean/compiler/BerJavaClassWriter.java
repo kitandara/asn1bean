@@ -129,6 +129,8 @@ public class BerJavaClassWriter implements BerImplementationWriter {
   public void initOutputDir() throws IOException {
     // Noting to do for this.
   }
+
+  @Override
   public void translateModule(AsnModule module) throws IOException {
 
     System.out.println("Generating classes for module \"" + module.moduleIdentifier.name + "\"");

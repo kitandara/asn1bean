@@ -32,6 +32,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     }
   }
 
+  @Override
   public void initOutputDir() throws IOException {
     // Write go.mod file
     Writer fileWriter = Files.newBufferedWriter(new File(outputBaseDir, "go.mod").toPath(), UTF_8);
@@ -240,7 +241,8 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("}");
   }
 
-  private String normaliseClassName(String className) {
+
+private String normaliseClassName(String className) {
     String[] l = className.split("\\.");
     if (l.length > 1) {
       return l[l.length - 2] + "." + l[l.length - 1];
@@ -860,6 +862,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     writeSequenceOrSetOfToStringFunction(className, referencedTypeName, componentType);
   }
 
+  @Override
   protected void writeSequenceOfEncodeFunction(
       String className, AsnElementType componentType, boolean hasExplicitTag, boolean isSequence) throws IOException {
 
@@ -1019,6 +1022,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("}\n");
   }
 
+  @Override
   protected void writeSequenceOfComponentDecodeUntaggedChoiceOrAny(ComponentInfo component)
       throws IOException {
     write("element := new(" + normaliseClassName(component.className) + ")");
@@ -1060,6 +1064,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     }
   }
 
+  @Override
   protected void writeSequenceDecodeMethod(String className, List<ComponentInfo> components, boolean hasExplicitTag)
       throws IOException {
     write("func (b *" + className + ") Decode(is io.Reader, withTagList ...bool) (int, error) {");
