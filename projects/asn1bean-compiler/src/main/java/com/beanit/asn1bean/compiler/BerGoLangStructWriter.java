@@ -150,7 +150,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     BufferedWriter bf = new BufferedWriter(fileWriter);
     bf.write("module " + pkg + "\n\n");
     bf.write("go " + GOLANG_VERSION + "\n\n");
-    bf.write("require " + LIB_SRC + " " + LIB_VERSION );
+    bf.write("require " + LIB_SRC + " " + LIB_VERSION);
     bf.close();
     fileWriter.close();
   }
@@ -427,13 +427,14 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     writeMembers(componentTypes);
     write("}\n");
 
-    write("func (b *" + className + ") GetTag () *" + LIB_PREFIX + ".BerTag {");
     if (tag != null) {
+      write("func (b *" + className + ") GetTag () *" + LIB_PREFIX + ".BerTag {");
+
       write("\treturn " + LIB_PREFIX + ".NewBerTag(" + getBerTagParametersString(tag) + ")");
+      write("}");
     } else {
-      write("\treturn nil"); // Right??
+      //   write("\treturn nil"); // Right??
     }
-    write("}");
 
     writeChoiceEncodeFunction(className, componentTypes, tag != null);
 
@@ -691,8 +692,9 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
 
     List<AsnElementType> componentTypes = asnSequenceSet.componentTypes;
     addAutomaticTagsIfNeeded(componentTypes);
-    setClassNamesOfComponents(listOfSubClassNames, componentTypes, className);
     writeSubClasses(className, listOfSubClassNames, componentTypes);
+
+    setClassNamesOfComponents(listOfSubClassNames, componentTypes, className);
 
     write("type " + className + " struct {");
     writeMembers(componentTypes);
