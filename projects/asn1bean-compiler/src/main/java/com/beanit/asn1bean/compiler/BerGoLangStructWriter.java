@@ -1,6 +1,7 @@
 package com.beanit.asn1bean.compiler;
 
 import com.beanit.asn1bean.ber.BerTag;
+import com.beanit.asn1bean.ber.types.BerObjectIdentifier;
 import com.beanit.asn1bean.compiler.model.*;
 import com.beanit.asn1bean.util.HexString;
 
@@ -162,6 +163,49 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     writeModFile(this.basePackageName, outputBaseDir);
   }
 
+  @Override
+  protected void writeOidValues(AsnModule module) throws IOException {
+    boolean first = true;
+    List<String> values = new ArrayList<>(module.asnValueAssignmentsByName.keySet());
+    Collections.sort(values);
+    for (String valueName : values) {
+      if (module.asnValueAssignmentsByName.get(valueName).type instanceof AsnObjectIdentifier) {
+        BerObjectIdentifier oid;
+        try {
+          oid = parseObjectIdentifierValue(valueName, module);
+        } catch (IllegalStateException e) {
+          System.out.println("Warning: could not parse object identifier value: " + e.getMessage());
+          continue;
+        }
+        StringBuilder sb =
+            new StringBuilder(
+                "var  "
+                    +  capitalizeFirstCharacter( Utils.cleanUpName(valueName))
+                    + "OidValue =  " + LIB_PREFIX + ".NewBerObjectIdentifier([]int {");
+        if (first) {
+          first = false;
+          writeClassHeader("OidValues", module);
+        }
+
+        boolean firstOidComponent = true;
+        if (oid != null) {
+          for (int i : oid.value) {
+            if (firstOidComponent) {
+              firstOidComponent = false;
+            } else {
+              sb.append(", ");
+            }
+            sb.append(i);
+          }
+        }
+        sb.append("})");
+        write(sb.toString());
+      }
+    }
+    if (!first) {
+      out.close();
+    }
+  }
   @Override
   protected String moduleToPackageName(String moduleName) {
     return Utils.moduleToPackageName(moduleName, "/");

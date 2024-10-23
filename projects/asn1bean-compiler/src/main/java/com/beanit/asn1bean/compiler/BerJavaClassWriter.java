@@ -176,7 +176,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     writeOidValues(module);
   }
 
-  private void writeOidValues(AsnModule module) throws IOException {
+  protected void writeOidValues(AsnModule module) throws IOException {
     boolean first = true;
     List<String> values = new ArrayList<>(module.asnValueAssignmentsByName.keySet());
     Collections.sort(values);
@@ -225,7 +225,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     return Utils.moduleToPackageName(moduleName, ".");
   }
 
-  private BerObjectIdentifier parseObjectIdentifierValue(String name, AsnModule module) {
+  BerObjectIdentifier parseObjectIdentifierValue(String name, AsnModule module) {
 
     AsnValueAssignment valueAssignment = module.asnValueAssignmentsByName.get(name);
 
