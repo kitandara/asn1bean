@@ -2202,7 +2202,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     return getBerType(typeDefinition);
   }
 
-  private String capitalizeFirstCharacter(String input) {
+  String capitalizeFirstCharacter(String input) {
     return input.substring(0, 1).toUpperCase() + input.substring(1);
   }
 

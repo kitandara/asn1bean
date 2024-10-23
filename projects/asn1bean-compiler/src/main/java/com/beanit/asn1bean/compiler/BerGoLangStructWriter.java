@@ -397,6 +397,21 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     return xName;
   }
 
+  protected void writeGetterAndSetter(String className, List<AsnElementType> componentTypes) throws IOException {
+    for (AsnElementType element : componentTypes) {
+      String typeName = getClassName(element);
+      String getterName = Utils.cleanUpName("get" + capitalizeFirstCharacter(element.name));
+      String setterName = Utils.cleanUpName("set" + capitalizeFirstCharacter(element.name));
+      String variableName = Utils.cleanUpName(element.name);
+      write("func (b *" + className +") "  + setterName + "(" + variableName + " *" +  normaliseClassName(typeName) + ") {");
+      write("b." + variableName + " = " + variableName + "");
+      write("}\n");
+      write("func (b * " + className + ") " + getterName + " () *" +  normaliseClassName(typeName) + " {");
+      write("return b." + variableName + "");
+      write("}\n");
+    }
+  }
+
   @Override
   protected void writeMembers(List<AsnElementType> componentTypes) throws IOException {
 
@@ -435,6 +450,8 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     } else {
       //   write("\treturn nil"); // Right??
     }
+
+    writeGetterAndSetter(className, componentTypes);
 
     writeChoiceEncodeFunction(className, componentTypes, tag != null);
 
@@ -708,6 +725,8 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("}");
     boolean hasExplicitTag = (tag != null) && (tag.type == BerImplementationWriter.TagType.EXPLICIT);
 
+    writeGetterAndSetter(className, componentTypes);
+
     writeSequenceOrSetEncodeFunction(className, componentTypes, hasExplicitTag, asnSequenceSet.isSequence);
     if (asnSequenceSet.isSequence) {
       writeSequenceDecodeMethod(className, convertToComponentInfos(componentTypes), hasExplicitTag);
@@ -915,7 +934,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
         write("if b." + getVariableName(componentType) + " != nil {");
       } else {
         write("if b." + getVariableName(componentType) + " == nil {");
-        write("return 0,errors.New(\"Missing component: " + getVariableName(componentType) + "\") ");
+        write("return 0,errors.New(\"missing component: " + getVariableName(componentType) + "\") ");
         write("}");
       }
 
