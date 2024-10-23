@@ -54,6 +54,9 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
   private static final String LIB_SRC = "github.com/kitandara/asn1ber";
   private static final String LIB_PREFIX = "asn1";
   private static final String GOLANG_VERSION = "1.23";
+
+  private static final String LIB_VERSION = "v0.1.0";
+
   List<String> outputFolders = new ArrayList<>();
 
   public BerGoLangStructWriter(HashMap<String, AsnModule> modulesByName,
@@ -77,14 +80,19 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     try {
       outputDirectory.mkdirs();
       // Generate module name...
+      String modName = moduleToPackageName(module.moduleIdentifier.name).replace('.', '/');
+      writeModFile(this.basePackageName + "/" + modName, outputDirectory);
+      outputFolders.add(modName);
+
+      /*
       Writer fileWriter = Files.newBufferedWriter(new File(outputDirectory, "go.mod").toPath(), UTF_8);
       BufferedWriter bf = new BufferedWriter(fileWriter);
-      String modName = moduleToPackageName(module.moduleIdentifier.name).replace('.', '/');
-      outputFolders.add(modName);
       bf.write("module " + this.basePackageName + "/" + modName + "\n\n");
-      bf.write("go " + GOLANG_VERSION + "\n");
+      bf.write("go " + GOLANG_VERSION + "\n\n");
+
       bf.close();
       fileWriter.close();
+       */
     } catch (Exception ex) {
       ex.printStackTrace();
     }
@@ -141,7 +149,8 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     Writer fileWriter = Files.newBufferedWriter(new File(baseDir, "go.mod").toPath(), UTF_8);
     BufferedWriter bf = new BufferedWriter(fileWriter);
     bf.write("module " + pkg + "\n\n");
-    bf.write("go " + GOLANG_VERSION + "\n");
+    bf.write("go " + GOLANG_VERSION + "\n\n");
+    bf.write("require " + LIB_SRC + " " + LIB_VERSION );
     bf.close();
     fileWriter.close();
   }
