@@ -948,12 +948,11 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
 
       if (isExplicit(componentTag)) {
         write(
-            "n,err = b."
+            "sublength,err = b."
                 + getVariableName(componentType)
                 + ".Encode(reverseOS"
                 + explicitEncoding
                 + ")");
-        write("sublength += n");
         write("codeLength += sublength");
         writeErrorCheckerCode();
         write("n,err = " + LIB_PREFIX + ".EncodeLength(sublength,reverseOS)");
