@@ -783,7 +783,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
         isUntaggedAnyOrChoice);
   }
 
-  private void replaceParametersByAnyTypes(
+  void replaceParametersByAnyTypes(
       List<AsnElementType> componentTypes, List<AsnParameter> parameters) {
     for (AsnParameter parameter : parameters) {
       if (parameter.paramGovernor == null) {

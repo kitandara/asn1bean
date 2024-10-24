@@ -1,6 +1,6 @@
 #!/bin/bash
 
-JARS_LOCATION="build/libs-all"
+JARS_LOCATION="build/libs"
 MAIN_CLASS="com.beanit.asn1bean.compiler.Compiler"
 SYSPROPS=""
 PARAMS=""

@@ -56,7 +56,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
   private static final String LIB_PREFIX = "asn1";
   private static final String GOLANG_VERSION = "1.23";
 
-  private static final String LIB_VERSION = "v0.1.0";
+  private static final String LIB_VERSION = "v0.1.1";
 
   List<String> outputFolders = new ArrayList<>();
 
@@ -85,17 +85,8 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
       writeModFile(this.basePackageName + "/" + modName, outputDirectory);
       outputFolders.add(modName);
 
-      /*
-      Writer fileWriter = Files.newBufferedWriter(new File(outputDirectory, "go.mod").toPath(), UTF_8);
-      BufferedWriter bf = new BufferedWriter(fileWriter);
-      bf.write("module " + this.basePackageName + "/" + modName + "\n\n");
-      bf.write("go " + GOLANG_VERSION + "\n\n");
-
-      bf.close();
-      fileWriter.close();
-       */
     } catch (Exception ex) {
-      ex.printStackTrace();
+//      ex.printStackTrace();
     }
   }
 
@@ -151,7 +142,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     BufferedWriter bf = new BufferedWriter(fileWriter);
     bf.write("module " + pkg + "\n\n");
     bf.write("go " + GOLANG_VERSION + "\n\n");
-    bf.write("require " + LIB_SRC + " " + LIB_VERSION);
+    bf.write("require " + LIB_SRC + " " + LIB_VERSION  + "\n");
     bf.close();
     fileWriter.close();
   }
@@ -479,9 +470,15 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
       String isStaticStr,
       List<String> listOfSubClassNames)
       throws IOException {
+
     List<AsnElementType> componentTypes = asn1TypeElement.componentTypes;
 
     addAutomaticTagsIfNeeded(componentTypes);
+
+    if (asn1TypeElement.parameters != null) {
+      List<AsnParameter> parameters = asn1TypeElement.parameters;
+      replaceParametersByAnyTypes(componentTypes, parameters);
+    }
 
     writeSubClasses(className, listOfSubClassNames, componentTypes);
     setClassNamesOfComponents(listOfSubClassNames, componentTypes, className);
@@ -514,7 +511,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
       String className, List<AsnElementType> componentTypes, boolean hasExplicitTag) throws IOException {
 
     write("func (b *" + className + ") Encode(reverseOS io.Writer, withTagList ...bool) (int, error) {");
-    if (!hasExplicitTag) {
+    if (hasExplicitTag) {
       write("var withTag bool\n"
           + "\tif len(withTagList) > 0 {\n"
           + "\t\twithTag = withTagList[0]\n"
@@ -575,8 +572,6 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
         write("codeLength += n");
         write("}");
         writeErrorCheckerCode();
-      } else {
-        suppressUnusedWarning("withTag");
       }
 
       write("return codeLength,nil");
@@ -758,6 +753,12 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
 
     List<AsnElementType> componentTypes = asnSequenceSet.componentTypes;
     addAutomaticTagsIfNeeded(componentTypes);
+
+    if (asnSequenceSet.parameters != null) {
+      List<AsnParameter> parameters = asnSequenceSet.parameters;
+      replaceParametersByAnyTypes(componentTypes, parameters);
+    }
+
     writeSubClasses(className, listOfSubClassNames, componentTypes);
 
     setClassNamesOfComponents(listOfSubClassNames, componentTypes, className);
@@ -1242,7 +1243,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("return 0,errors.New(\"tag did not match\")");
     write("}");
     write("vByteCount += numDecodedBytes");
-    write("b.SeqOf = append(b.sqIf,element)");
+    write("b.SeqOf = append(b.SeqOf,element)");
   }
 
   @Override
@@ -1588,7 +1589,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
 
       if (isOptional(componentType)) {
         if (checkIfFirstSelectedElement && j != (componentTypes.size() - 1)) {
-          write("firstSelectedElement := false");
+          write("firstSelectedElement = false");
         }
         write("}");
       } else {

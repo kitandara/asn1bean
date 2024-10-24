@@ -44,6 +44,9 @@ public class Utils {
                   "import",
                   "null",
                   "code",
+                  "type", // Added for golang...
+                  "struct",
+                  "func",
                   "getClass",
                   "setClass")));
 
