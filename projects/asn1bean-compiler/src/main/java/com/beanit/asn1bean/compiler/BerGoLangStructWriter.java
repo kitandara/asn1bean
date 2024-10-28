@@ -142,7 +142,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     BufferedWriter bf = new BufferedWriter(fileWriter);
     bf.write("module " + pkg + "\n\n");
     bf.write("go " + GOLANG_VERSION + "\n\n");
-    bf.write("require " + LIB_SRC + " " + LIB_VERSION  + "\n");
+    bf.write("require " + LIB_SRC + " " + LIB_VERSION + "\n");
     bf.close();
     fileWriter.close();
   }
@@ -152,11 +152,6 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     outputDirectory = new File(outputBaseDir, "."); // Force output dir to get created...
     outputDirectory.mkdirs();
     writeModFile(this.basePackageName, outputBaseDir);
-  }
-
-  @Override
-  protected boolean useClassNameAsSubclassPrefix() {
-    return true;
   }
 
   @Override
@@ -176,7 +171,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
         StringBuilder sb =
             new StringBuilder(
                 "var  "
-                    +  capitalizeFirstCharacter( Utils.cleanUpName(valueName))
+                    + capitalizeFirstCharacter(Utils.cleanUpName(valueName))
                     + "OidValue =  " + LIB_PREFIX + ".NewBerObjectIdentifier([]int {");
         if (first) {
           first = false;
@@ -202,6 +197,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
       out.close();
     }
   }
+
   @Override
   protected String moduleToPackageName(String moduleName) {
     return Utils.moduleToPackageName(moduleName, "/");
@@ -428,6 +424,8 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     String xName;
     if (l.length > 1) {
       xName = l[l.length - 1];
+    } else if (className.contains(".")) {
+      return className;
     } else {
       String embeddedType = Utils.cleanUpName(className);
 
@@ -511,7 +509,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     writeChoiceToStringFunction(className, componentTypes);
   }
 
-  
+
   @Override
   protected void writeChoiceEncodeFunction(
       String className, List<AsnElementType> componentTypes, boolean hasExplicitTag) throws IOException {
@@ -749,13 +747,29 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
   }
 
   @Override
-  protected String getClassName(
-      List<String> listOfSubClassNames, AsnTaggedType element, String parentClass)
-  {
-    if (element.className != null && element.className.length() > 0)
-      return element.className;
-    return super.getClassName(listOfSubClassNames,element,parentClass);
+  protected String commonNameSuffix() {
+    int ct = module.commonNameSuffix++;
+    return "" + ct;
   }
+
+  private boolean subclassShadowsTopLevelClass(String subClassName) {
+
+    return module.typesByName.get(subClassName) != null;
+  }
+
+  protected String processDuplicates(AsnElementType componentType, String subClassName) {
+    // Check if it exists in module.
+
+    if (module.subClasses.contains(subClassName) || subclassShadowsTopLevelClass(subClassName)) {
+      int ct = module.commonNameSuffix++;
+      subClassName = subClassName + ct;
+      componentType.className = subClassName;
+    }
+    module.subClasses.add(subClassName);
+    return subClassName;
+  }
+
+
   @Override
   protected void writeSequenceOrSetClass(
       String className,
@@ -951,7 +965,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     String classNameOfSequenceElement = getClassNameOfSequenceOfElement(componentType);
     for (String subClassName : listOfSubClassNames) {
       if (classNameOfSequenceElement.equals(subClassName)) {
-        String moduleName = module.moduleIdentifier.name;
+        String moduleName = null; //module.moduleIdentifier.name;
 
         for (SymbolsFromModule symbols : this.module.importSymbolFromModuleList) {
           if (symbols.symbolList.contains(classNameOfSequenceElement)) {
@@ -959,8 +973,11 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
             break;
           }
         }
-
-        return Utils.lastPartOfPackageName(moduleToPackageName(moduleName)) + "." + classNameOfSequenceElement;
+        if (moduleName == null) {
+          return classNameOfSequenceElement; // Do not normalise our classname. Right?
+        } else {
+          return Utils.lastPartOfPackageName(moduleToPackageName(moduleName)) + "." + classNameOfSequenceElement;
+        }
       }
     }
     return classNameOfSequenceElement;

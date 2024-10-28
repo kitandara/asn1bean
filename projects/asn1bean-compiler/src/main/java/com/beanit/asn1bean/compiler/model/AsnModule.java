@@ -13,26 +13,26 @@
  */
 package com.beanit.asn1bean.compiler.model;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class AsnModule {
 
   public final Map<String, AsnType> typesByName = new HashMap<>();
   public final Map<String, AsnValueAssignment> asnValueAssignmentsByName = new HashMap<>();
   public final Map<String, AsnInformationObjectClass> objectClassesByName = new HashMap<>();
+  public final List<SymbolsFromModule> importSymbolFromModuleList = new ArrayList<>();
   public List<List<String>> exportSymbolList;
   public boolean exported;
   public boolean extensible;
-  public final List<SymbolsFromModule> importSymbolFromModuleList = new ArrayList<>();
   public boolean imported;
   public AsnModuleIdentifier moduleIdentifier;
   public boolean tag;
   public TagDefault tagDefault = TagDefault.EXPLICIT;
 
   public boolean nameEmitted = false; // Track output of name...
+  public int commonNameSuffix;
+  public Set<String> subClasses = new HashSet<>();
+
   public AsnModule() {
     exportSymbolList = new ArrayList<>();
 

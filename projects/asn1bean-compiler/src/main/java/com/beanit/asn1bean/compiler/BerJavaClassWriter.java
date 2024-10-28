@@ -508,7 +508,9 @@ public class BerJavaClassWriter implements BerImplementationWriter {
   protected void setClassNamesOfComponents(
       List<String> listOfSubClassNames, List<AsnElementType> componentTypes, String parentClass) {
     for (AsnElementType element : componentTypes) {
-      element.className = getClassName(listOfSubClassNames, element, parentClass);
+      if (element.className == null || element.className.length() == 0) {
+        element.className = getClassName(listOfSubClassNames, element, parentClass);
+      }
     }
   }
 
@@ -642,11 +644,8 @@ public class BerJavaClassWriter implements BerImplementationWriter {
       if (isInnerType(componentType)) {
 
         String subClassName = getClassName(componentType, className);
-        if (this.useClassNameAsSubclassPrefix()) {
-          subClassName = Utils.cleanUpName(className + "_" + subClassName);
-          componentType.className =  subClassName;
-        }
 
+        subClassName = processDuplicates(componentType, subClassName);
         writeConstructedTypeClass(
             subClassName, componentType.typeReference, null, true, listOfSubClassNames);
 
@@ -655,8 +654,8 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     }
   }
 
-  protected boolean useClassNameAsSubclassPrefix() {
-    return false;
+  protected String processDuplicates(AsnElementType componentType, String subClassName) {
+    return subClassName;
   }
 
   BerImplementationWriter.Tag tagFromSequenceSet(Tag tag, boolean isSequenceOf) {
@@ -2191,25 +2190,29 @@ public class BerJavaClassWriter implements BerImplementationWriter {
       if (typeDefinition instanceof AsnSequenceSet) {
 
         if (((AsnSequenceSet) typeDefinition).isSequence) {
-          subClassName = "SEQUENCE";
+          subClassName = "SEQUENCE" + commonNameSuffix();
         } else {
-          subClassName = "SET";
+          subClassName = "SET" + commonNameSuffix();
         }
 
       } else if (typeDefinition instanceof AsnSequenceOf) {
         if (((AsnSequenceOf) typeDefinition).isSequenceOf) {
-          subClassName = "SEQUENCEOF";
+          subClassName = "SEQUENCEOF" + commonNameSuffix();
         } else {
-          subClassName = "SETOF";
+          subClassName = "SETOF" + commonNameSuffix();
         }
 
       } else {
-        subClassName = "CHOICE";
+        subClassName = "CHOICE" + commonNameSuffix();
       }
 
       return subClassName;
     }
     return getBerType(typeDefinition);
+  }
+
+  protected String commonNameSuffix() {
+    return "";
   }
 
   String capitalizeFirstCharacter(String input) {
