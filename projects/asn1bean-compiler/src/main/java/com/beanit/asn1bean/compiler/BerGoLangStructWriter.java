@@ -155,6 +155,11 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
   }
 
   @Override
+  protected boolean useClassNameAsSubclassPrefix() {
+    return true;
+  }
+
+  @Override
   protected void writeOidValues(AsnModule module) throws IOException {
     boolean first = true;
     List<String> values = new ArrayList<>(module.asnValueAssignmentsByName.keySet());
@@ -506,6 +511,7 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     writeChoiceToStringFunction(className, componentTypes);
   }
 
+  
   @Override
   protected void writeChoiceEncodeFunction(
       String className, List<AsnElementType> componentTypes, boolean hasExplicitTag) throws IOException {
@@ -742,6 +748,14 @@ public class BerGoLangStructWriter extends BerJavaClassWriter implements BerImpl
     write("}\n");
   }
 
+  @Override
+  protected String getClassName(
+      List<String> listOfSubClassNames, AsnTaggedType element, String parentClass)
+  {
+    if (element.className != null && element.className.length() > 0)
+      return element.className;
+    return super.getClassName(listOfSubClassNames,element,parentClass);
+  }
   @Override
   protected void writeSequenceOrSetClass(
       String className,

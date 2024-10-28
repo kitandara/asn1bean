@@ -111,10 +111,10 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     // Noting to do for this.
   }
 
-  protected void initModuleOutputDir(AsnModule module)
-  {
+  protected void initModuleOutputDir(AsnModule module) {
     // Do nothing.
   }
+
   @Override
   public void translateModule(AsnModule module) throws IOException {
 
@@ -526,7 +526,7 @@ public class BerJavaClassWriter implements BerImplementationWriter {
     return getClassName(null, asnElementType, parentClass);
   }
 
-  private String getClassName(
+  protected String getClassName(
       List<String> listOfSubClassNames, AsnTaggedType element, String parentClass) {
 
     if (listOfSubClassNames == null) {
@@ -642,11 +642,21 @@ public class BerJavaClassWriter implements BerImplementationWriter {
       if (isInnerType(componentType)) {
 
         String subClassName = getClassName(componentType, className);
+        if (this.useClassNameAsSubclassPrefix()) {
+          subClassName = Utils.cleanUpName(className + "_" + subClassName);
+          componentType.className =  subClassName;
+        }
 
         writeConstructedTypeClass(
             subClassName, componentType.typeReference, null, true, listOfSubClassNames);
+
       }
+
     }
+  }
+
+  protected boolean useClassNameAsSubclassPrefix() {
+    return false;
   }
 
   BerImplementationWriter.Tag tagFromSequenceSet(Tag tag, boolean isSequenceOf) {
